@@ -1,0 +1,35 @@
+[
+  {
+    "id": "195b7cb0-863a-42fd-a17d-d91aa221fac8",
+    "orgId": "340e4b30-22bc-44f2-be56-85b061daaddd",
+    "name": "TeleCMI Inbound Lead",
+    "email": null,
+    "phone": "+919999888877",
+    "courseInterest": "General Inquiry",
+    "source": "VOICE_AGENT",
+    "status": "NEW",
+    "createdAt": "2026-10-09T10:06:27.430Z"
+  },
+  {
+    "id": "4e13556d-3924-478d-b7e3-53e1b4d3dfe1",
+    "orgId": "340e4b30-22bc-44f2-be56-85b061daaddd",
+    "name": "Fresh Voice Lead",
+    "email": null,
+    "phone": "+919326659470",
+    "courseInterest": null,
+    "source": "VOICE_AGENT",
+    "status": "NEW",
+    "createdAt": "2026-10-09T09:48:56.757Z"
+  },
+  {
+    "id": "5fed37b9-ee34-4177-9853-4cf25d0cd1f6",
+    "orgId": "340e4b30-22bc-44f2-be56-85b061daaddd",
+    "name": "Inbound Lead",
+    "email": null,
+    "phone": "+919953777320",
+    "courseInterest": "Flight Training",
+    "source": "VOICE_AGENT",
+    "status": "NEW",
+    "createdAt": "2026-10-09T09:49:21.071Z"
+  }
+]

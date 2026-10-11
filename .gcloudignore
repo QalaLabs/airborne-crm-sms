@@ -1,0 +1,10 @@
+.git
+.gitignore
+.gcloudignore
+node_modules/
+.next/
+.vercel/
+.env*
+*.log
+dist/
+build/

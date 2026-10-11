@@ -1,0 +1,190 @@
+/* Airborne Student Portal — premium aviation design tokens
+   Scoped under .portal-shell so admin CRM theme stays untouched. */
+
+.portal-shell {
+  --ab-navy: #071526;
+  --ab-navy-2: #0b1f3a;
+  --ab-navy-3: #0f2748;
+  --ab-panel: rgba(12, 28, 52, 0.72);
+  --ab-panel-solid: #0c1c34;
+  --ab-red: #c8102e;
+  --ab-red-hover: #a00d25;
+  --ab-red-glow: rgba(200, 16, 46, 0.35);
+  --ab-gold: #d4a017;
+  --ab-gold-soft: rgba(212, 160, 23, 0.15);
+  --ab-success: #34d399;
+  --ab-warning: #f59e0b;
+  --ab-text: #f4f7fb;
+  --ab-muted: rgba(244, 247, 251, 0.55);
+  --ab-faint: rgba(244, 247, 251, 0.35);
+  --ab-border: rgba(255, 255, 255, 0.1);
+  --ab-border-strong: rgba(255, 255, 255, 0.18);
+  --ab-radius: 1.25rem;
+  --ab-radius-sm: 0.875rem;
+  --font-portal: var(--font-portal-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-portal-display: var(--font-portal-display), Georgia, serif;
+
+  min-height: 100vh;
+  color: var(--ab-text);
+  font-family: var(--font-portal);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(200, 16, 46, 0.18), transparent 55%),
+    radial-gradient(900px 500px at 90% 0%, rgba(212, 160, 23, 0.08), transparent 50%),
+    radial-gradient(800px 400px at 50% 100%, rgba(26, 90, 160, 0.15), transparent 60%),
+    linear-gradient(180deg, var(--ab-navy) 0%, var(--ab-navy-2) 45%, #081525 100%);
+  background-attachment: fixed;
+}
+
+.portal-shell ::selection {
+  background: rgba(200, 16, 46, 0.35);
+  color: white;
+}
+
+.portal-atmosphere {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.35;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at center, black 20%, transparent 75%);
+}
+
+.ab-glass {
+  background: var(--ab-panel);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid var(--ab-border);
+  border-radius: var(--ab-radius);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 18px 40px rgba(0, 0, 0, 0.35);
+}
+
+.ab-glass-soft {
+  background: rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--ab-border);
+  border-radius: var(--ab-radius-sm);
+}
+
+.ab-glass-hero {
+  background:
+    linear-gradient(135deg, rgba(200, 16, 46, 0.18) 0%, rgba(12, 28, 52, 0.55) 42%, rgba(12, 28, 52, 0.8) 100%);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(200, 16, 46, 0.28);
+  border-radius: calc(var(--ab-radius) + 4px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 24px 60px rgba(0, 0, 0, 0.4),
+    0 0 40px var(--ab-red-glow);
+}
+
+.ab-eyebrow {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ab-red);
+}
+
+.ab-display {
+  font-family: var(--font-portal-display);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.ab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ab-btn:active {
+  transform: scale(0.98);
+}
+
+.ab-btn-primary {
+  background: var(--ab-red);
+  color: white;
+  box-shadow: 0 8px 24px var(--ab-red-glow);
+}
+
+.ab-btn-primary:hover {
+  background: var(--ab-red-hover);
+}
+
+.ab-btn-ghost {
+  border: 1px solid var(--ab-border-strong);
+  color: rgba(255, 255, 255, 0.75);
+  background: transparent;
+}
+
+.ab-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+}
+
+.ab-nav-pill {
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ab-nav-pill[aria-current="page"] {
+  background: rgba(200, 16, 46, 0.18);
+  color: white;
+  box-shadow: 0 0 0 1px rgba(200, 16, 46, 0.35) inset;
+}
+
+.ab-progress-track {
+  height: 0.35rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.ab-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--ab-red), #e83a52);
+  box-shadow: 0 0 12px var(--ab-red-glow);
+}
+
+.ab-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 2.5rem 1.5rem;
+  border-radius: var(--ab-radius);
+  border: 1px dashed var(--ab-border-strong);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.portal-shell .scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.portal-shell .scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-shell *,
+  .portal-shell *::before,
+  .portal-shell *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

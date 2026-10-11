@@ -1,0 +1,2486 @@
+// ============================================================
+// AIRBORNE AVIATION ACADEMY - PRISMA SCHEMA
+// Engine: PostgreSQL 15+  |  ORM: Prisma 6
+// ============================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters", "fullTextSearchPostgres"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── ENUMS ──────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  MARKETING_MANAGER
+  CONTENT_MANAGER
+  ADMISSIONS_COUNSELOR
+  PLACEMENT_MANAGER
+  SUPPORT_STAFF
+  // SMS / LMS portal roles (additive - do not remove staff roles)
+  TEACHER
+  STUDENT
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  INTERESTED
+  FOLLOW_UP
+  COUNSELED
+  APPLICATION_SUBMITTED
+  CONVERTED
+  LOST
+  // ── Phase 2 workflow (additive) ───────────────────────────────────────
+  // Level-2 "Connected" sub-statuses
+  CONNECTED
+  CALL_BACK
+  PROSPECT
+  WON
+  // Level-2 "Not Connected" sub-statuses
+  NOT_CONNECTED
+  RINGING
+  NOT_REACHABLE
+  SWITCHED_OFF
+  VOICEMAIL
+  // Refined "Lost" reason sub-statuses
+  INCOMING_BARD
+  OUT_OF_SERVICE
+  NOT_AWARE
+  NOT_CONTACTABLE
+  LOCATION_OUT_OF_SCOPE
+  LANGUAGE_BARRIER
+  PRICE_HIGH
+  JOINED_OTHERS
+  NOT_ELIGIBLE
+  INVALID_NUMBER
+  TEST_LEAD
+  NOT_INTERESTED
+  REASON_NOT_SHARED
+  JOB_SEEKER
+}
+
+enum LeadSource {
+  HOMEPAGE_CTA
+  COURSE_PAGE
+  CONTACT_FORM
+  CALLBACK_REQUEST
+  BROCHURE_DOWNLOAD
+  GOOGLE_ADS
+  FACEBOOK_ADS
+  ORGANIC
+  REFERRAL
+  WHATSAPP
+  DIRECT
+  WALK_IN
+  VOICE_AGENT
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  WHATSAPP
+  SMS
+  NOTE
+  MEETING
+  TASK
+  STATUS_CHANGE
+  ASSIGNMENT
+  SYSTEM
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  WHATSAPP
+  IN_APP
+}
+
+enum NotificationEvent {
+  NEW_LEAD
+  LEAD_ASSIGNED
+  LEAD_STATUS_CHANGED
+  ADMISSION_STAGE_CHANGED
+  JOB_PUBLISHED
+  TESTIMONIAL_SUBMITTED
+  PAYMENT_RECEIVED
+  PLACEMENT_ADDED
+  ENQUIRY_RECEIVED
+  USER_INVITED
+  TASK_DUE
+  WORKFLOW_TRIGGERED
+}
+
+enum WorkflowTrigger {
+  LEAD_CREATED
+  LEAD_STATUS_CHANGED
+  LEAD_ASSIGNED
+  ADMISSION_STAGE_CHANGED
+  PAYMENT_RECEIVED
+  FORM_SUBMITTED
+  SCHEDULED
+  // Interconnect OS (additive - mapped from canonical events in src/lib/events/catalog.ts)
+  LEAD_UPDATED
+  APPLICATION_CREATED
+  APPLICATION_APPROVED
+  COURSE_ENROLLED
+  PAYMENT_PENDING
+  PAYMENT_FAILED
+  PAYMENT_REFUNDED
+  WHATSAPP_REPLIED
+  WHATSAPP_OPTED_OUT
+  EBOOK_DOWNLOADED
+  CHATBOT_ESCALATED
+  AI_CALL_COMPLETED
+  CAMPUS_VISIT_BOOKED
+  // CRM pipeline (additive)
+  DEAL_CREATED
+  DEAL_STAGE_CHANGED
+}
+
+enum OrgPlan {
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  SCHEDULED
+  ARCHIVED
+}
+
+enum ResourceType {
+  PDF
+  VIDEO
+  LINK
+  IMAGE
+  DOCUMENT
+  AUDIO
+  OTHER
+}
+
+enum JobStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+  ARCHIVED
+}
+
+enum JobApplicationStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  SHORTLISTED
+  INTERVIEW_SCHEDULED
+  SELECTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum PlacementStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+enum TestimonialStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ─── ORGANIZATIONS (Multi-tenant root) ──────────────────────────────────────
+
+model Organization {
+  id            String    @id @default(uuid()) @db.Uuid
+  name          String    @db.VarChar(255)
+  slug          String    @unique @db.VarChar(100)
+  domain        String?   @db.VarChar(255)
+  plan          OrgPlan   @default(STARTER)
+  planExpiresAt DateTime?
+  logoUrl       String?
+  settings      Json      @default("{}")
+  featureFlags  Json      @default("{}")
+  parentOrgId   String?   @db.Uuid
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Self-referential for HQ → campus hierarchy
+  parentOrg Organization?  @relation("OrgHierarchy", fields: [parentOrgId], references: [id])
+  childOrgs Organization[] @relation("OrgHierarchy")
+
+  // Relations
+  users           User[]
+  campuses        Campus[]
+  leads           Lead[]
+  deals           Deal[]
+  students        Student[]              @relation("OrgStudents")
+  admissions      Admission[]            @relation("OrgAdmissions")
+  documents       Document[]             @relation("OrgDocuments")
+  payments        PaymentTransaction[]   @relation("OrgPayments")
+  auditLogs       AuditLog[]
+  eventLogs       EventLog[]
+  activityFeed    ActivityFeedItem[]
+  permissions     Permission[]
+  workflows       Workflow[]
+  featureFlagRows FeatureFlag[]
+  notifTemplates  NotificationTemplate[]
+  mediaFolders    MediaFolder[]          @relation("OrgMediaFolders")
+  mediaAssets     MediaAsset[]           @relation("OrgMediaAssets")
+  contentBlocks   ContentBlock[]         @relation("OrgContentBlocks")
+  pages           Page[]                 @relation("OrgPages")
+  courses         Course[]               @relation("OrgCourses")
+  navMenus        NavMenu[]              @relation("OrgNavMenus")
+  resources       Resource[]             @relation("OrgResources")
+  jobs            Job[]                  @relation("OrgJobs")
+  jobApplications JobApplication[]       @relation("OrgJobApplications")
+  placements      Placement[]            @relation("OrgPlacements")
+  hiringPartners  HiringPartner[]        @relation("OrgHiringPartners")
+  testimonials    Testimonial[]          @relation("OrgTestimonials")
+
+  // SMS / LMS (additive)
+  lmsCourses             LmsCourse[]             @relation("OrgLmsCourses")
+  lmsEnrollments         LmsEnrollment[]         @relation("OrgLmsEnrollments")
+  lmsAttendanceSessions  LmsAttendanceSession[]  @relation("OrgLmsAttendanceSessions")
+  lmsCertificates        LmsCertificate[]        @relation("OrgLmsCertificates")
+  lmsChatRooms           LmsChatRoom[]           @relation("OrgLmsChatRooms")
+  lmsNotifications       LmsNotification[]       @relation("OrgLmsNotifications")
+  lmsAnnouncements       LmsAnnouncement[]       @relation("OrgLmsAnnouncements")
+  lmsBatches             LmsBatch[]              @relation("OrgLmsBatches")
+  lmsTimetableSlots      LmsTimetableSlot[]      @relation("OrgLmsTimetableSlots")
+  lmsAssignments         LmsAssignment[]         @relation("OrgLmsAssignments")
+  feePlans               FeePlan[]               @relation("OrgFeePlans")
+  whatsappConversations  WhatsAppConversation[]
+  whatsappCampaigns      WhatsAppCampaign[]
+  whatsappProviderEvents WhatsAppProviderEvent[]
+  internalEvents         InternalEvent[]
+  interaktLeadSyncs      InteraktLeadSync[]
+  interaktAutomations    InteraktAutomation[]
+  integrationKeys        IntegrationKey[]        @relation("OrgIntegrationKeys")
+
+  @@index([slug])
+  @@index([isActive])
+  @@map("organizations")
+}
+
+// ─── INTEGRATION KEYS ───────────────────────────────────────────────────────
+// Inbound webhook keys (e.g. one per Google Ads lead form). Only the SHA-256
+// hash is stored; the raw key is shown once at creation.
+
+model IntegrationKey {
+  id         String    @id @default(uuid()) @db.Uuid
+  orgId      String    @db.Uuid
+  provider   String    @db.VarChar(50)
+  name       String    @db.VarChar(100)
+  keyHash    String    @unique @db.VarChar(64)
+  keyPreview String    @db.VarChar(20)
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  lastUsedAt DateTime?
+  createdBy  String?   @db.Uuid
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  org Organization @relation("OrgIntegrationKeys", fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, provider])
+  @@map("integration_keys")
+}
+
+// ─── CAMPUSES ───────────────────────────────────────────────────────────────
+
+model Campus {
+  id              String   @id @default(uuid()) @db.Uuid
+  orgId           String   @db.Uuid
+  name            String   @db.VarChar(255)
+  code            String   @db.VarChar(20)
+  city            String   @db.VarChar(100)
+  state           String   @db.VarChar(100)
+  country         String   @default("IN") @db.VarChar(2)
+  address         String?
+  phone           String?  @db.VarChar(20)
+  email           String?  @db.VarChar(255)
+  headCounselorId String?  @db.Uuid
+  timezone        String   @default("Asia/Kolkata") @db.VarChar(50)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  org           Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  headCounselor User?                @relation("CampusHead", fields: [headCounselorId], references: [id], onDelete: SetNull)
+  users         User[]               @relation("CampusUsers")
+  leads         Lead[]
+  students      Student[]            @relation("CampusStudents")
+  admissions    Admission[]          @relation("CampusAdmissions")
+  payments      PaymentTransaction[] @relation("CampusPayments")
+
+  @@unique([orgId, code])
+  @@index([orgId])
+  @@index([isActive])
+  @@map("campuses")
+}
+
+// ─── USERS ──────────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  orgId         String    @db.Uuid
+  campusId      String?   @db.Uuid
+  name          String    @db.VarChar(255)
+  email         String    @db.VarChar(255)
+  phone         String?   @db.VarChar(20)
+  passwordHash  String?
+  role          UserRole  @default(SUPPORT_STAFF)
+  avatarUrl     String?
+  emailVerified DateTime?
+  isActive      Boolean   @default(true)
+  isMfaEnabled  Boolean   @default(false)
+  mfaSecret     String?
+  lastLoginAt   DateTime?
+  lastLoginIp   String?   @db.VarChar(45)
+  invitedBy     String?   @db.Uuid
+  inviteToken   String?   @unique
+  inviteExpiry  DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  campus Campus?      @relation("CampusUsers", fields: [campusId], references: [id], onDelete: SetNull)
+
+  // Auth.js adapter relations
+  accounts Account[]
+  sessions Session[]
+
+  // Business relations
+  assignedLeads          Lead[]               @relation("LeadCounselor")
+  createdLeads           Lead[]               @relation("LeadCreator")
+  ownedDeals             Deal[]               @relation("DealOwner")
+  createdDeals           Deal[]               @relation("DealCreator")
+  leadActivities         LeadActivity[]
+  auditLogs              AuditLog[]
+  activityFeed           ActivityFeedItem[]
+  headOfCampuses         Campus[]             @relation("CampusHead")
+  workflowRuns           WorkflowRun[]
+  counseledAdmissions    Admission[]          @relation("AdmissionCounselor")
+  stageChangedAdmissions Admission[]          @relation("AdmissionStageChanger")
+  stageLogActions        AdmissionStageLog[]  @relation("StageLogActor")
+  uploadedDocuments      Document[]           @relation("DocumentUploader")
+  reviewedDocuments      Document[]           @relation("DocumentReviewer")
+  collectedPayments      PaymentTransaction[] @relation("PaymentCollector")
+  refundedPayments       PaymentTransaction[] @relation("PaymentRefunder")
+  mediaFolders           MediaFolder[]        @relation("MediaFolderCreator")
+  uploadedMediaAssets    MediaAsset[]         @relation("MediaAssetUploader")
+  createdBlocks          ContentBlock[]       @relation("ContentBlockCreator")
+  createdPages           Page[]               @relation("PageCreator")
+  publishedPages         Page[]               @relation("PagePublisher")
+  pageVersions           PageVersion[]        @relation("PageVersionCreator")
+  createdCourses         Course[]             @relation("CourseCreator")
+  publishedCourses       Course[]             @relation("CoursePublisher")
+  courseVersions         CourseVersion[]      @relation("CourseVersionCreator")
+  createdNavMenus        NavMenu[]            @relation("NavMenuCreator")
+  createdResources       Resource[]           @relation("ResourceCreator")
+  whatsappMessagesSent   WhatsAppMessage[]    @relation("WhatsAppMessageSender")
+  createdJobs            Job[]                @relation("JobCreator")
+  publishedJobs          Job[]                @relation("JobPublisher")
+  reviewedApplications   JobApplication[]     @relation("ApplicationReviewer")
+  createdPlacements      Placement[]          @relation("PlacementCreator")
+  createdHiringPartners  HiringPartner[]      @relation("HiringPartnerCreator")
+  reviewedTestimonials   Testimonial[]        @relation("TestimonialReviewer")
+
+  // SMS / LMS portal (additive)
+  studentProfile        Student?                  @relation("StudentAuthUser")
+  teachingCourses       LmsCourseTeacher[]        @relation("LmsCourseTeacher")
+  lmsProgress           LmsStudentProgress[]      @relation("LmsProgressStudent")
+  lmsAssessments        LmsAssessment[]           @relation("LmsAssessmentStudent")
+  lmsSentMessages       LmsMessage[]              @relation("LmsSentMessages")
+  lmsNotifications      LmsNotification[]         @relation("LmsNotificationUser")
+  issuedCertificates    LmsCertificate[]          @relation("LmsCertificateIssuer")
+  markedAttendance      LmsAttendanceRecord[]     @relation("LmsAttendanceMarker")
+  lmsQuizAttempts       LmsQuizAttempt[]          @relation("LmsQuizAttemptUser")
+  lmsAnnouncements      LmsAnnouncement[]         @relation("LmsAnnouncementCreator")
+  lmsBatchTeaching      LmsBatchTeacher[]         @relation("LmsBatchTeacher")
+  lmsTimetableTeaching  LmsTimetableSlot[]        @relation("LmsTimetableTeacher")
+  lmsAssignmentsCreated LmsAssignment[]           @relation("LmsAssignmentCreator")
+  lmsSubmissionsGraded  LmsAssignmentSubmission[] @relation("LmsSubmissionGrader")
+
+  @@unique([email, orgId])
+  @@index([orgId, role])
+  @@index([orgId, isActive])
+  @@index([email])
+  @@map("users")
+}
+
+// ─── AUTH.JS ADAPTER TABLES ─────────────────────────────────────────────────
+
+model Account {
+  id                String  @id @default(uuid()) @db.Uuid
+  userId            String  @db.Uuid
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(uuid()) @db.Uuid
+  sessionToken String   @unique
+  userId       String   @db.Uuid
+  expires      DateTime
+  ipAddress    String?  @db.VarChar(45)
+  userAgent    String?  @db.Text
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ─── PERMISSIONS (RBAC + ABAC) ──────────────────────────────────────────────
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  orgId       String   @db.Uuid
+  role        UserRole
+  resource    String   @db.VarChar(100)
+  action      String   @db.VarChar(50)
+  conditions  Json?
+  campusScope Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, role, resource, action])
+  @@index([orgId, role])
+  @@map("permissions")
+}
+
+// ─── LEADS ──────────────────────────────────────────────────────────────────
+
+model Lead {
+  id             String     @id @default(uuid()) @db.Uuid
+  orgId          String     @db.Uuid
+  campusId       String?    @db.Uuid
+  name           String     @db.VarChar(255)
+  email          String?    @db.VarChar(255)
+  phone          String     @db.VarChar(20)
+  city           String?    @db.VarChar(100)
+  state          String?    @db.VarChar(100)
+  pincode        String?    @db.VarChar(10)
+  googleId       String?    @db.VarChar(255)
+  manualAmount   Decimal?   @db.Decimal(12, 2)
+  courseInterest String?    @db.VarChar(255)
+  source         LeadSource @default(DIRECT)
+  status         LeadStatus @default(NEW)
+  assignedTo     String?    @db.Uuid
+  createdBy      String?    @db.Uuid
+
+  // UTM / attribution
+  utmSource   String? @db.VarChar(255)
+  utmMedium   String? @db.VarChar(255)
+  utmCampaign String? @db.VarChar(255)
+  utmTerm     String? @db.VarChar(255)
+  utmContent  String? @db.VarChar(255)
+  referrerUrl String? @db.Text
+  landingPage String? @db.Text
+
+  // Scoring
+  score        Int      @default(0)
+  tags         String[]
+  customFields Json     @default("{}")
+
+  // Dedup
+  isDuplicate Boolean @default(false)
+  duplicateOf String? @db.Uuid
+
+  // WhatsApp (Interconnect OS) — contact-level opt-out kill switch
+  whatsappOptOut Boolean @default(false)
+
+  // Outcome
+  convertedAt    DateTime?
+  lostReason     String?   @db.Text
+  nextFollowUp   DateTime?
+  lastActivityAt DateTime?
+
+  metadata  Json      @default("{}")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  org                   Organization           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  campus                Campus?                @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  counselor             User?                  @relation("LeadCounselor", fields: [assignedTo], references: [id], onDelete: SetNull)
+  creator               User?                  @relation("LeadCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  duplicateRef          Lead?                  @relation("LeadDuplicate", fields: [duplicateOf], references: [id], onDelete: SetNull)
+  duplicates            Lead[]                 @relation("LeadDuplicate")
+  activities            LeadActivity[]
+  scoreHistory          LeadScoreHistory[]
+  admissions            Admission[]            @relation("LeadAdmissions")
+  deals                 Deal[]                 @relation("LeadDeals")
+  student               Student?               @relation("LeadStudent")
+  whatsappConversations WhatsAppConversation[]
+  interaktSyncs         InteraktLeadSync[]
+
+  @@unique([orgId, phone])
+  @@index([orgId, status])
+  @@index([orgId, status, createdAt(sort: Desc)])
+  @@index([orgId, assignedTo, createdAt(sort: Desc)])
+  @@index([orgId, createdAt(sort: Desc)])
+  @@index([phone, orgId])
+  @@index([email, orgId])
+  @@index([orgId, score(sort: Desc)])
+  @@map("leads")
+}
+
+// ─── LEAD ACTIVITIES ────────────────────────────────────────────────────────
+
+model LeadActivity {
+  id           String       @id @default(uuid()) @db.Uuid
+  leadId       String       @db.Uuid
+  orgId        String       @db.Uuid
+  dealId       String?      @db.Uuid
+  performedBy  String?      @db.Uuid
+  activityType ActivityType
+  title        String?      @db.VarChar(500)
+  notes        String?      @db.Text
+  outcome      String?      @db.VarChar(255)
+  nextAction   String?      @db.Text
+  dueAt        DateTime?
+  completedAt  DateTime?
+  durationMins Int?
+  metadata     Json         @default("{}")
+  createdAt    DateTime     @default(now())
+
+  lead      Lead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  deal      Deal? @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  performer User? @relation(fields: [performedBy], references: [id], onDelete: SetNull)
+
+  @@index([leadId, createdAt(sort: Desc)])
+  @@index([dealId, createdAt(sort: Desc)])
+  @@index([performedBy])
+  @@index([dueAt])
+  @@index([orgId, dueAt])
+  @@map("lead_activities")
+}
+
+// ─── LEAD SCORE HISTORY ─────────────────────────────────────────────────────
+
+model LeadScoreHistory {
+  id        String   @id @default(uuid()) @db.Uuid
+  leadId    String   @db.Uuid
+  orgId     String   @db.Uuid
+  score     Int
+  reason    String?  @db.VarChar(255)
+  createdAt DateTime @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId, createdAt(sort: Desc)])
+  @@map("lead_score_history")
+}
+
+// ─── DEAL / OPPORTUNITY ──────────────────────────────────────────────────────
+//
+// A Deal is a persisted sales opportunity tied 1:1 to a Lead (canonical person
+// record — no duplicate contact tables). Stages reuse `AdmissionStage` because
+// the product's sales funnel IS the admission funnel (audit §F07: "the native
+// equivalent is the admission funnel"): ENQUIRY → DOCUMENT_COLLECTION →
+// VERIFICATION → OFFER_LETTER → FEE_PAYMENT → ENROLLED, with DROPPED/CANCELLED
+// as terminal lost stages. WON ⇔ stage ENROLLED (wonAt set), LOST ⇔ DROPPED or
+// CANCELLED (lostAt + lostReason set).
+//
+// Lifecycle conventions (mirrors Lead/Admission):
+//  - `convertedAt`  = moment the Deal produced an Admission (deal → admission)
+//  - `wonAt`        = moment the Deal reached ENROLLED
+//  - `lostAt`       = moment the Deal reached DROPPED/CANCELLED (needs lostReason)
+//  - `revertedAt`   = moment the Deal was reverted to Prospect (Change Deal To
+//                     Prospect) — the Deal is archived (isActive=false) and
+//                     kept for audit; the lead is restored to PROSPECT.
+//  - `admissionId`  unique-non-null link: a Deal can own at most one converted
+//                     Admission (partial unique in Postgres) → concurrent
+//                     conversion requests cannot create duplicate Admissions.
+//  - `@@unique([orgId, leadId])` → concurrent Prospect→Deal conversions can
+//                     never create two Deals for the same lead (P2002 recovery).
+
+model Deal {
+  id              String         @id @default(uuid()) @db.Uuid
+  orgId           String         @db.Uuid
+  leadId          String         @db.Uuid
+  admissionId     String?        @unique @db.Uuid
+  title           String         @db.VarChar(255)
+  stage           AdmissionStage @default(ENQUIRY)
+  value           Decimal?       @db.Decimal(12, 2)
+  currency        String         @default("INR") @db.VarChar(3)
+  expectedCloseAt DateTime?
+  source          LeadSource?
+  assignedTo      String?        @db.Uuid
+  createdBy       String?        @db.Uuid
+  notes           String?        @db.Text
+  lostReason      String?        @db.Text
+  wonAt           DateTime?
+  lostAt          DateTime?
+  convertedAt     DateTime?
+  revertedAt      DateTime?
+  isActive        Boolean        @default(true)
+  metadata        Json           @default("{}")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  deletedAt       DateTime?
+
+  org        Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  lead       Lead           @relation("LeadDeals", fields: [leadId], references: [id], onDelete: Cascade)
+  admission  Admission?     @relation("DealAdmission", fields: [admissionId], references: [id], onDelete: SetNull)
+  counselor  User?          @relation("DealOwner", fields: [assignedTo], references: [id], onDelete: SetNull)
+  creator    User?          @relation("DealCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  activities LeadActivity[]
+
+  @@unique([orgId, leadId])
+  @@index([orgId, stage])
+  @@index([orgId, isActive, stage])
+  @@index([orgId, assignedTo])
+  @@index([orgId, createdAt(sort: Desc)])
+  @@index([orgId, wonAt])
+  @@index([orgId, updatedAt(sort: Desc)])
+  @@map("deals")
+}
+
+// ─── AUDIT LOGS (Append-only, hash-chained) ──────────────────────────────────
+
+model AuditLog {
+  id         BigInt   @id @default(autoincrement())
+  orgId      String   @db.Uuid
+  userId     String?  @db.Uuid
+  sessionId  String?  @db.Uuid
+  requestId  String?  @db.VarChar(255)
+  action     String   @db.VarChar(100)
+  entityType String   @db.VarChar(100)
+  entityId   String?  @db.VarChar(255)
+  oldValue   Json?
+  newValue   Json?
+  diff       Json?
+  ipAddress  String?  @db.VarChar(45)
+  userAgent  String?  @db.Text
+  prevHash   String?  @db.VarChar(64)
+  rowHash    String?  @db.VarChar(64)
+  occurredAt DateTime @default(now())
+
+  org  Organization @relation(fields: [orgId], references: [id])
+  user User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, occurredAt(sort: Desc)])
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+// ─── EVENT LOG (Immutable event stream) ──────────────────────────────────────
+
+model EventLog {
+  id         BigInt   @id @default(autoincrement())
+  orgId      String   @db.Uuid
+  eventName  String   @db.VarChar(255)
+  actorId    String?  @db.Uuid
+  actorType  String?  @db.VarChar(50)
+  entityType String?  @db.VarChar(100)
+  entityId   String?  @db.VarChar(255)
+  payload    Json     @default("{}")
+  occurredAt DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id])
+
+  @@index([orgId, occurredAt(sort: Desc)])
+  @@index([orgId, eventName])
+  @@index([entityType, entityId])
+  @@map("event_log")
+}
+
+// ─── ACTIVITY FEED ──────────────────────────────────────────────────────────
+
+model ActivityFeedItem {
+  id             String   @id @default(uuid()) @db.Uuid
+  orgId          String   @db.Uuid
+  actorId        String?  @db.Uuid
+  verb           String   @db.VarChar(100)
+  objectType     String   @db.VarChar(100)
+  objectId       String   @db.VarChar(255)
+  objectSnapshot Json
+  targetId       String?  @db.VarChar(255)
+  targetType     String?  @db.VarChar(100)
+  context        Json     @default("{}")
+  occurredAt     DateTime @default(now())
+
+  org   Organization @relation(fields: [orgId], references: [id])
+  actor User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, occurredAt(sort: Desc)])
+  @@index([actorId, occurredAt(sort: Desc)])
+  @@index([objectType, objectId])
+  @@map("activity_feed_items")
+}
+
+// ─── NOTIFICATION TEMPLATES ──────────────────────────────────────────────────
+
+model NotificationTemplate {
+  id        String              @id @default(uuid()) @db.Uuid
+  orgId     String              @db.Uuid
+  event     NotificationEvent
+  channel   NotificationChannel
+  name      String              @db.VarChar(255)
+  subject   String?             @db.VarChar(500)
+  body      String              @db.Text
+  variables String[]
+  isActive  Boolean             @default(true)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  org  Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  logs NotificationLog[]
+
+  @@unique([orgId, event, channel])
+  @@map("notification_templates")
+}
+
+// ─── NOTIFICATION LOGS ──────────────────────────────────────────────────────
+
+model NotificationLog {
+  id         String              @id @default(uuid()) @db.Uuid
+  orgId      String              @db.Uuid
+  templateId String?             @db.Uuid
+  event      NotificationEvent?
+  channel    NotificationChannel
+  recipient  String              @db.VarChar(255)
+  subject    String?             @db.Text
+  body       String?             @db.Text
+  status     String              @default("PENDING") @db.VarChar(30)
+  errorMsg   String?             @db.Text
+  externalId String?             @db.VarChar(255)
+  entityType String?             @db.VarChar(100)
+  entityId   String?             @db.VarChar(255)
+  sentAt     DateTime?
+  createdAt  DateTime            @default(now())
+
+  template NotificationTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, status])
+  @@index([orgId, createdAt(sort: Desc)])
+  @@map("notification_logs")
+}
+
+// ─── WORKFLOWS ───────────────────────────────────────────────────────────────
+
+model Workflow {
+  id                String          @id @default(uuid()) @db.Uuid
+  orgId             String          @db.Uuid
+  name              String          @db.VarChar(255)
+  // Stable reference used by START_WORKFLOW steps and the API (unique per org)
+  code              String?         @db.VarChar(100)
+  description       String?         @db.Text
+  triggerEvent      WorkflowTrigger
+  triggerConditions Json            @default("{}")
+  steps             Json            @default("[]")
+  isActive          Boolean         @default(true)
+  version           Int             @default(1)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  org  Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  runs WorkflowRun[]
+
+  @@unique([orgId, code])
+  @@index([orgId, isActive])
+  @@map("workflows")
+}
+
+model WorkflowRun {
+  id                  String    @id @default(uuid()) @db.Uuid
+  orgId               String    @db.Uuid
+  workflowId          String    @db.Uuid
+  entityType          String    @db.VarChar(100)
+  entityId            String    @db.VarChar(255)
+  triggeredBy         String?   @db.Uuid
+  currentStep         Int       @default(0)
+  // RUNNING (= active), PAUSED, COMPLETED, STOPPED, FAILED, CANCELLED
+  status              String    @default("RUNNING") @db.VarChar(30)
+  context             Json      @default("{}")
+  error               String?   @db.Text
+  // Idempotency: eventName:entityId:requestId — NULL for manual runs.
+  // Unique per (org, workflow, entity); Postgres allows many NULLs so manual
+  // runs are never blocked by the dedup index.
+  dedupKey            String?   @db.VarChar(255)
+  stoppedReason       String?   @db.Text
+  nextRunAt           DateTime?
+  retryCount          Int       @default(0)
+  pausedAt            DateTime?
+  stoppedAt           DateTime?
+  executionOwner      String?   @db.VarChar(128)
+  executionLeaseUntil DateTime?
+  startedAt           DateTime  @default(now())
+  completedAt         DateTime?
+
+  workflow  Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  triggerer User?    @relation(fields: [triggeredBy], references: [id], onDelete: SetNull)
+
+  @@unique([orgId, workflowId, entityType, entityId, dedupKey])
+  @@index([workflowId])
+  @@index([entityType, entityId])
+  @@index([orgId, status])
+  @@index([status, nextRunAt])
+  @@index([status, executionLeaseUntil])
+  @@map("workflow_runs")
+}
+
+// Persisted internal automation bus — replaces Inngest event delivery for
+// workflow matching, side-effect handlers, and audit. Deduped on requestId.
+model InternalEvent {
+  id                   String    @id @default(uuid()) @db.Uuid
+  orgId                String    @db.Uuid
+  name                 String    @db.VarChar(120)
+  requestId            String    @db.VarChar(255)
+  actorId              String?   @db.VarChar(255)
+  actorName            String?   @db.VarChar(255)
+  payload              Json      @default("{}")
+  processedAt          DateTime?
+  attemptCount         Int       @default(0)
+  lastError            String?   @db.Text
+  nextAttemptAt        DateTime?
+  failedAt             DateTime?
+  processingOwner      String?   @db.VarChar(128)
+  processingLeaseUntil DateTime?
+  createdAt            DateTime  @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, name, requestId], map: "internal_events_dedup")
+  @@index([orgId, createdAt(sort: Desc)])
+  @@index([processedAt, failedAt, nextAttemptAt])
+  @@map("internal_events")
+}
+
+// Interakt Advanced control-plane mapping. Airborne does not execute these
+// workflows — Interakt does. Rows store the dashboard reference + templates
+// involved so Admin can show real config without inventing an Interakt API.
+model InteraktAutomation {
+  id              String   @id @default(uuid()) @db.Uuid
+  orgId           String   @db.Uuid
+  code            String   @db.VarChar(80)
+  name            String   @db.VarChar(255)
+  triggerEvent    String   @default("lead_created") @db.VarChar(80)
+  courseKey       String?  @db.VarChar(80)
+  leadSourceGroup String?  @db.VarChar(80)
+  provider        String   @default("interakt") @db.VarChar(40)
+  workflowRef     String?  @db.VarChar(255)
+  campaignRef     String?  @db.VarChar(255)
+  templates       Json     @default("[]")
+  isActive        Boolean  @default(true)
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, code])
+  @@index([orgId, isActive])
+  @@map("interakt_automations")
+}
+
+// Per-lead Interakt track idempotency + observability. Not a job queue.
+model InteraktLeadSync {
+  id              String    @id @default(uuid()) @db.Uuid
+  orgId           String    @db.Uuid
+  leadId          String    @db.Uuid
+  eventName       String    @db.VarChar(80)
+  status          String    @db.VarChar(40)
+  contactSynced   Boolean   @default(false)
+  eventSent       Boolean   @default(false)
+  courseKey       String?   @db.VarChar(80)
+  leadSource      String?   @db.VarChar(80)
+  skipReason      String?   @db.VarChar(255)
+  providerUserId  String?   @db.VarChar(255)
+  providerEventId String?   @db.VarChar(255)
+  workflowRef     String?   @db.VarChar(255)
+  errorMessage    String?   @db.Text
+  retryCount      Int       @default(0)
+  lastAttemptAt   DateTime?
+  succeededAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  lead Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([leadId, eventName])
+  @@index([orgId, status, updatedAt(sort: Desc)])
+  @@index([orgId, eventName, eventSent])
+  @@map("interakt_lead_syncs")
+}
+
+// ─── WHATSAPP (Interconnect OS) ──────────────────────────────────────────────
+// Conversation-level store. Rows are written by the messaging providers
+// (mock in dev, Interakt in prod) and by manual inbox sends / campaigns.
+// Templated notification bookkeeping stays in NotificationLog.
+
+enum WhatsAppMessageDirection {
+  IN
+  OUT
+}
+
+model WhatsAppConversation {
+  id                 String    @id @default(uuid()) @db.Uuid
+  orgId              String    @db.Uuid
+  phone              String    @db.VarChar(20)
+  leadId             String?   @db.Uuid
+  lastMessageAt      DateTime?
+  lastMessagePreview String?   @db.VarChar(255)
+  unreadCount        Int       @default(0)
+  optedOut           Boolean   @default(false)
+  archived           Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  org      Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  lead     Lead?             @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  messages WhatsAppMessage[]
+
+  @@unique([orgId, phone])
+  @@index([orgId, lastMessageAt(sort: Desc)])
+  @@map("whatsapp_conversations")
+}
+
+model WhatsAppMessage {
+  id              String                   @id @default(uuid()) @db.Uuid
+  orgId           String                   @db.Uuid
+  conversationId  String                   @db.Uuid
+  direction       WhatsAppMessageDirection
+  body            String                   @db.Text
+  templateName    String?                  @db.VarChar(255)
+  // QUEUED / SENT / DELIVERED / READ / FAILED / RECEIVED
+  status          String                   @default("SENT") @db.VarChar(30)
+  externalId      String?                  @db.VarChar(255)
+  errorMsg        String?                  @db.Text
+  sentBy          String?                  @db.Uuid
+  campaignId      String?                  @db.Uuid
+  leadId          String?                  @db.Uuid
+  workflowRunId   String?                  @db.Uuid
+  workflowStepKey String?                  @db.VarChar(64)
+  idempotencyKey  String?                  @db.VarChar(255)
+  // Provider response + correlation (callback_data, Interakt payload slice).
+  metadata        Json                     @default("{}")
+  createdAt       DateTime                 @default(now())
+
+  conversation WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User?                @relation("WhatsAppMessageSender", fields: [sentBy], references: [id], onDelete: SetNull)
+
+  @@unique([orgId, idempotencyKey], map: "wa_messages_idempotency_key")
+  @@index([conversationId, createdAt])
+  @@index([orgId, createdAt(sort: Desc)])
+  @@index([orgId, externalId])
+  @@map("whatsapp_messages")
+}
+
+// Dedup table for Interakt (and future) webhook deliveries. One row per
+// (org, provider, eventType, providerEventId) — retries hit the unique index.
+model WhatsAppProviderEvent {
+  id              String   @id @default(uuid()) @db.Uuid
+  orgId           String   @db.Uuid
+  provider        String   @db.VarChar(40)
+  eventType       String   @db.VarChar(80)
+  providerEventId String   @db.VarChar(255)
+  payload         Json     @default("{}")
+  createdAt       DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, provider, eventType, providerEventId], map: "wa_provider_events_dedup_key")
+  @@index([orgId, createdAt(sort: Desc)])
+  @@map("whatsapp_provider_events")
+}
+
+model WhatsAppCampaign {
+  id              String    @id @default(uuid()) @db.Uuid
+  orgId           String    @db.Uuid
+  name            String    @db.VarChar(255)
+  message         String    @db.Text
+  templateName    String?   @db.VarChar(255)
+  // { tags?: string[], statuses?: string[] } — audience filter over leads
+  audienceFilter  Json      @default("{}")
+  // DRAFT / LAUNCHING / COMPLETED
+  status          String    @default("DRAFT") @db.VarChar(30)
+  totalRecipients Int       @default(0)
+  sentCount       Int       @default(0)
+  failedCount     Int       @default(0)
+  skippedCount    Int       @default(0)
+  launchedBy      String?   @db.Uuid
+  launchedAt      DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, status])
+  @@map("whatsapp_campaigns")
+}
+
+// ─── STUDENTS ────────────────────────────────────────────────────────────────
+
+enum StudentStatus {
+  ACTIVE
+  GRADUATED
+  DROPPED
+  SUSPENDED
+  ON_HOLD
+}
+
+model Student {
+  id             String        @id @default(uuid()) @db.Uuid
+  orgId          String        @db.Uuid
+  campusId       String?       @db.Uuid
+  leadId         String?       @unique @db.Uuid
+  // Optional portal login link (SMS) - staff CRM Student stays intact without userId
+  userId         String?       @unique @db.Uuid
+  studentCode    String        @db.VarChar(50)
+  firstName      String        @db.VarChar(100)
+  lastName       String        @db.VarChar(100)
+  email          String        @db.VarChar(255)
+  phone          String        @db.VarChar(20)
+  dateOfBirth    DateTime?
+  gender         String?       @db.VarChar(20)
+  nationality    String        @default("Indian") @db.VarChar(100)
+  address        Json          @default("{}")
+  guardianName   String?       @db.VarChar(255)
+  guardianPhone  String?       @db.VarChar(20)
+  guardianEmail  String?       @db.VarChar(255)
+  medicalFitness Boolean       @default(false)
+  class10Board   String?       @db.VarChar(100)
+  class10Year    Int?
+  class10Percent Float?
+  class12Board   String?       @db.VarChar(100)
+  class12Year    Int?
+  class12Percent Float?
+  class12Stream  String?       @db.VarChar(100)
+  status         StudentStatus @default(ACTIVE)
+  enrolledAt     DateTime?
+  graduatedAt    DateTime?
+  droppedAt      DateTime?
+  customFields   Json          @default("{}")
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
+
+  org          Organization         @relation("OrgStudents", fields: [orgId], references: [id], onDelete: Cascade)
+  campus       Campus?              @relation("CampusStudents", fields: [campusId], references: [id], onDelete: SetNull)
+  lead         Lead?                @relation("LeadStudent", fields: [leadId], references: [id], onDelete: SetNull)
+  user         User?                @relation("StudentAuthUser", fields: [userId], references: [id], onDelete: SetNull)
+  admissions   Admission[]
+  documents    Document[]           @relation("StudentDocuments")
+  payments     PaymentTransaction[] @relation("StudentPayments")
+  applications JobApplication[]     @relation("StudentApplications")
+  placements   Placement[]          @relation("StudentPlacements")
+  testimonials Testimonial[]        @relation("StudentTestimonials")
+
+  // SMS / LMS
+  lmsEnrollments           LmsEnrollment[]           @relation("StudentLmsEnrollments")
+  lmsProgress              LmsStudentProgress[]      @relation("StudentLmsProgress")
+  lmsAssessments           LmsAssessment[]           @relation("StudentLmsAssessments")
+  lmsAttendanceRecords     LmsAttendanceRecord[]     @relation("StudentLmsAttendance")
+  lmsCertificates          LmsCertificate[]          @relation("StudentLmsCertificates")
+  lmsQuizAttempts          LmsQuizAttempt[]          @relation("StudentLmsQuizAttempts")
+  lmsBookmarks             LmsBookmark[]             @relation("StudentLmsBookmarks")
+  lmsBatchMemberships      LmsBatchStudent[]         @relation("StudentLmsBatches")
+  lmsAssignmentSubmissions LmsAssignmentSubmission[] @relation("StudentLmsSubmissions")
+
+  @@unique([orgId, studentCode])
+  @@unique([orgId, email])
+  @@index([orgId, status])
+  @@index([campusId])
+  @@index([orgId, createdAt(sort: Desc)])
+  @@map("students")
+}
+
+// ─── ADMISSIONS ──────────────────────────────────────────────────────────────
+
+enum AdmissionStage {
+  ENQUIRY
+  DOCUMENT_COLLECTION
+  VERIFICATION
+  OFFER_LETTER
+  FEE_PAYMENT
+  ENROLLED
+  DROPPED
+  CANCELLED
+}
+
+model FeePlan {
+  id          String   @id @default(uuid()) @db.Uuid
+  orgId       String   @db.Uuid
+  courseId    String?  @db.Uuid
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  currency    String   @default("INR") @db.VarChar(3)
+  isActive    Boolean  @default(true)
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org        Organization  @relation("OrgFeePlans", fields: [orgId], references: [id], onDelete: Cascade)
+  course     Course?       @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  items      FeePlanItem[]
+  admissions Admission[]   @relation("AdmissionFeePlan")
+
+  @@index([orgId, isActive])
+  @@index([orgId, courseId])
+  @@index([orgId, createdAt(sort: Desc)])
+  @@map("fee_plans")
+}
+
+model FeePlanItem {
+  id            String   @id @default(uuid()) @db.Uuid
+  feePlanId     String   @db.Uuid
+  name          String   @db.VarChar(255)
+  amount        Decimal  @db.Decimal(10, 2)
+  percentOfFee  Decimal? @db.Decimal(5, 2)
+  dueOffsetDays Int      @default(0)
+  sortOrder     Int      @default(0)
+  metadata      Json     @default("{}")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  feePlan FeePlan @relation(fields: [feePlanId], references: [id], onDelete: Cascade)
+
+  @@index([feePlanId, sortOrder])
+  @@map("fee_plan_items")
+}
+
+model Admission {
+  id             String         @id @default(uuid()) @db.Uuid
+  orgId          String         @db.Uuid
+  campusId       String?        @db.Uuid
+  studentId      String?        @db.Uuid
+  leadId         String         @db.Uuid
+  applicationNo  String         @db.VarChar(50)
+  stage          AdmissionStage @default(ENQUIRY)
+  courseName     String?        @db.VarChar(255)
+  courseId       String?        @db.Uuid
+  batchName      String?        @db.VarChar(255)
+  batchStartDate DateTime?
+  batchId        String?        @db.Uuid
+  feePlanId      String?        @db.Uuid
+  feeAmount      Decimal?       @db.Decimal(10, 2)
+  feeDiscount    Decimal        @default(0) @db.Decimal(10, 2)
+  feeFinal       Decimal?       @db.Decimal(10, 2)
+  feePaid        Decimal        @default(0) @db.Decimal(10, 2)
+  feeBalance     Decimal        @default(0) @db.Decimal(10, 2)
+  counselorId    String?        @db.Uuid
+  stageChangedAt DateTime?
+  stageChangedBy String?        @db.Uuid
+  notes          String?        @db.Text
+  metadata       Json           @default("{}")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  org          Organization         @relation("OrgAdmissions", fields: [orgId], references: [id], onDelete: Cascade)
+  campus       Campus?              @relation("CampusAdmissions", fields: [campusId], references: [id], onDelete: SetNull)
+  student      Student?             @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  lead         Lead                 @relation("LeadAdmissions", fields: [leadId], references: [id])
+  deal         Deal?                @relation("DealAdmission")
+  course       Course?              @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  batch        LmsBatch?            @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  feePlan      FeePlan?             @relation("AdmissionFeePlan", fields: [feePlanId], references: [id], onDelete: SetNull)
+  counselor    User?                @relation("AdmissionCounselor", fields: [counselorId], references: [id], onDelete: SetNull)
+  stageChanger User?                @relation("AdmissionStageChanger", fields: [stageChangedBy], references: [id], onDelete: SetNull)
+  stageLogs    AdmissionStageLog[]
+  documents    Document[]           @relation("AdmissionDocuments")
+  payments     PaymentTransaction[] @relation("AdmissionPayments")
+
+  @@unique([orgId, applicationNo])
+  @@index([orgId, stage])
+  @@index([studentId])
+  @@index([leadId])
+  @@index([counselorId])
+  @@index([feePlanId])
+  @@index([courseId])
+  @@index([batchId])
+  @@index([orgId, createdAt(sort: Desc)])
+  @@map("admissions")
+}
+
+model AdmissionStageLog {
+  id          String          @id @default(uuid()) @db.Uuid
+  orgId       String          @db.Uuid
+  admissionId String          @db.Uuid
+  fromStage   AdmissionStage?
+  toStage     AdmissionStage
+  notes       String?         @db.Text
+  changedBy   String?         @db.Uuid
+  changedAt   DateTime        @default(now())
+
+  admission Admission @relation(fields: [admissionId], references: [id], onDelete: Cascade)
+  actor     User?     @relation("StageLogActor", fields: [changedBy], references: [id], onDelete: SetNull)
+
+  @@index([admissionId, changedAt(sort: Desc)])
+  @@index([orgId])
+  @@map("admission_stage_logs")
+}
+
+// ─── DOCUMENTS ────────────────────────────────────────────────────────────────
+
+enum DocumentType {
+  AADHAR_CARD
+  PAN_CARD
+  PASSPORT
+  PHOTO
+  CLASS_10_MARKSHEET
+  CLASS_12_MARKSHEET
+  MEDICAL_CERTIFICATE
+  BIRTH_CERTIFICATE
+  BANK_STATEMENT
+  OTHER
+}
+
+enum DocumentStatus {
+  PENDING
+  UPLOADED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+model Document {
+  id              String         @id @default(uuid()) @db.Uuid
+  orgId           String         @db.Uuid
+  studentId       String?        @db.Uuid
+  admissionId     String?        @db.Uuid
+  uploadedBy      String?        @db.Uuid
+  reviewedBy      String?        @db.Uuid
+  documentType    DocumentType
+  name            String         @db.VarChar(255)
+  fileUrl         String         @db.Text
+  fileKey         String         @db.VarChar(500)
+  fileMimeType    String?        @db.VarChar(100)
+  fileSizeBytes   Int?
+  status          DocumentStatus @default(UPLOADED)
+  reviewedAt      DateTime?
+  rejectionReason String?        @db.Text
+  expiresAt       DateTime?
+  metadata        Json           @default("{}")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  org       Organization @relation("OrgDocuments", fields: [orgId], references: [id], onDelete: Cascade)
+  student   Student?     @relation("StudentDocuments", fields: [studentId], references: [id], onDelete: Cascade)
+  admission Admission?   @relation("AdmissionDocuments", fields: [admissionId], references: [id], onDelete: SetNull)
+  uploader  User?        @relation("DocumentUploader", fields: [uploadedBy], references: [id], onDelete: SetNull)
+  reviewer  User?        @relation("DocumentReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([orgId, status])
+  @@index([studentId])
+  @@index([admissionId])
+  @@index([orgId, documentType])
+  @@map("documents")
+}
+
+// ─── PAYMENT TRANSACTIONS ─────────────────────────────────────────────────────
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  UPI
+  CARD
+  CHEQUE
+  DD
+  ONLINE
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+model PaymentTransaction {
+  id              String        @id @default(uuid()) @db.Uuid
+  orgId           String        @db.Uuid
+  campusId        String?       @db.Uuid
+  admissionId     String        @db.Uuid
+  studentId       String?       @db.Uuid
+  amount          Decimal       @db.Decimal(10, 2)
+  currency        String        @default("INR") @db.VarChar(3)
+  method          PaymentMethod
+  status          PaymentStatus @default(PENDING)
+  referenceNo     String?       @db.VarChar(255)
+  receiptNo       String?       @db.VarChar(100)
+  feeType         String?       @db.VarChar(100)
+  description     String?       @db.Text
+  paidAt          DateTime?
+  gateway         String?       @db.VarChar(100)
+  gatewayTxnId    String?       @db.VarChar(255)
+  gatewayResponse Json?
+  notes           String?       @db.Text
+  collectedBy     String?       @db.Uuid
+  idempotencyKey  String?       @db.VarChar(255)
+  refundedAmount  Decimal       @default(0) @db.Decimal(10, 2)
+  refundedAt      DateTime?
+  refundedBy      String?       @db.Uuid
+  metadata        Json          @default("{}")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  org       Organization @relation("OrgPayments", fields: [orgId], references: [id], onDelete: Cascade)
+  campus    Campus?      @relation("CampusPayments", fields: [campusId], references: [id], onDelete: SetNull)
+  admission Admission    @relation("AdmissionPayments", fields: [admissionId], references: [id])
+  student   Student?     @relation("StudentPayments", fields: [studentId], references: [id], onDelete: SetNull)
+  collector User?        @relation("PaymentCollector", fields: [collectedBy], references: [id], onDelete: SetNull)
+  refunder  User?        @relation("PaymentRefunder", fields: [refundedBy], references: [id], onDelete: SetNull)
+
+  @@unique([orgId, idempotencyKey])
+  @@unique([orgId, receiptNo])
+  @@index([orgId, status])
+  @@index([admissionId])
+  @@index([studentId])
+  @@index([orgId, paidAt(sort: Desc)])
+  @@index([orgId, createdAt(sort: Desc)])
+  @@index([orgId, refundedAt(sort: Desc)])
+  @@map("payment_transactions")
+}
+
+// ─── MEDIA LIBRARY ───────────────────────────────────────────────────────────
+
+model MediaFolder {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  parentId  String?  @db.Uuid
+  name      String   @db.VarChar(255)
+  slug      String   @db.VarChar(255)
+  path      String   @db.Text
+  createdBy String?  @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org      Organization  @relation("OrgMediaFolders", fields: [orgId], references: [id], onDelete: Cascade)
+  parent   MediaFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children MediaFolder[] @relation("FolderTree")
+  assets   MediaAsset[]
+  creator  User?         @relation("MediaFolderCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@unique([orgId, path])
+  @@index([orgId, parentId])
+  @@map("media_folders")
+}
+
+model MediaAsset {
+  id           String   @id @default(uuid()) @db.Uuid
+  orgId        String   @db.Uuid
+  folderId     String?  @db.Uuid
+  uploadedBy   String?  @db.Uuid
+  name         String   @db.VarChar(255)
+  originalName String   @db.VarChar(255)
+  fileKey      String   @db.VarChar(500)
+  fileUrl      String   @db.Text
+  mimeType     String   @db.VarChar(100)
+  sizeBytes    Int
+  width        Int?
+  height       Int?
+  duration     Int?
+  altText      String?  @db.VarChar(500)
+  caption      String?  @db.Text
+  tags         String[]
+  usageCount   Int      @default(0)
+  replacedById String?  @db.Uuid
+  isActive     Boolean  @default(true)
+  metadata     Json     @default("{}")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  org        Organization @relation("OrgMediaAssets", fields: [orgId], references: [id], onDelete: Cascade)
+  folder     MediaFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  uploader   User?        @relation("MediaAssetUploader", fields: [uploadedBy], references: [id], onDelete: SetNull)
+  replacedBy MediaAsset?  @relation("AssetReplacement", fields: [replacedById], references: [id], onDelete: SetNull)
+  replaces   MediaAsset[] @relation("AssetReplacement")
+  usages     MediaUsage[]
+
+  @@index([orgId, folderId])
+  @@index([orgId, isActive])
+  @@index([orgId, createdAt(sort: Desc)])
+  @@map("media_assets")
+}
+
+model MediaUsage {
+  id         String   @id @default(uuid()) @db.Uuid
+  orgId      String   @db.Uuid
+  assetId    String   @db.Uuid
+  entityType String   @db.VarChar(100)
+  entityId   String   @db.VarChar(255)
+  fieldName  String?  @db.VarChar(100)
+  createdAt  DateTime @default(now())
+
+  asset MediaAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, entityType, entityId, fieldName])
+  @@index([assetId])
+  @@index([entityType, entityId])
+  @@map("media_usages")
+}
+
+// ─── CONTENT BLOCKS ──────────────────────────────────────────────────────────
+
+model ContentBlock {
+  id           String   @id @default(uuid()) @db.Uuid
+  orgId        String   @db.Uuid
+  type         String   @db.VarChar(100)
+  name         String   @db.VarChar(255)
+  description  String?  @db.Text
+  schema       Json
+  defaultProps Json     @default("{}")
+  category     String?  @db.VarChar(100)
+  isGlobal     Boolean  @default(false)
+  createdBy    String?  @db.Uuid
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  org        Organization @relation("OrgContentBlocks", fields: [orgId], references: [id], onDelete: Cascade)
+  creator    User?        @relation("ContentBlockCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  pageBlocks PageBlock[]
+
+  @@unique([orgId, type])
+  @@index([orgId, category])
+  @@map("content_blocks")
+}
+
+// ─── PAGES (Homepage Visual Builder) ─────────────────────────────────────────
+
+model Page {
+  id          String        @id @default(uuid()) @db.Uuid
+  orgId       String        @db.Uuid
+  title       String        @db.VarChar(255)
+  slug        String        @db.VarChar(255)
+  description String?       @db.Text
+  status      ContentStatus @default(DRAFT)
+  publishedAt DateTime?
+  scheduledAt DateTime?
+  publishedBy String?       @db.Uuid
+  seoTitle    String?       @db.VarChar(255)
+  seoDesc     String?       @db.VarChar(500)
+  seoKeywords String[]
+  ogImage     String?       @db.Text
+  metadata    Json          @default("{}")
+  version     Int           @default(1)
+  createdBy   String?       @db.Uuid
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  org       Organization  @relation("OrgPages", fields: [orgId], references: [id], onDelete: Cascade)
+  creator   User?         @relation("PageCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  publisher User?         @relation("PagePublisher", fields: [publishedBy], references: [id], onDelete: SetNull)
+  sections  PageSection[]
+  versions  PageVersion[]
+
+  @@unique([orgId, slug])
+  @@index([orgId, status])
+  @@index([orgId, createdAt(sort: Desc)])
+  @@map("pages")
+}
+
+model PageSection {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  pageId    String   @db.Uuid
+  name      String?  @db.VarChar(255)
+  order     Int      @default(0)
+  isVisible Boolean  @default(true)
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  page   Page        @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  blocks PageBlock[]
+
+  @@index([pageId, order])
+  @@map("page_sections")
+}
+
+model PageBlock {
+  id          String   @id @default(uuid()) @db.Uuid
+  orgId       String   @db.Uuid
+  sectionId   String   @db.Uuid
+  blockTypeId String   @db.Uuid
+  order       Int      @default(0)
+  props       Json     @default("{}")
+  isVisible   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  section   PageSection  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  blockType ContentBlock @relation(fields: [blockTypeId], references: [id])
+
+  @@index([sectionId, order])
+  @@map("page_blocks")
+}
+
+model PageVersion {
+  id          String        @id @default(uuid()) @db.Uuid
+  orgId       String        @db.Uuid
+  pageId      String        @db.Uuid
+  version     Int
+  title       String        @db.VarChar(255)
+  snapshot    Json
+  status      ContentStatus
+  publishedAt DateTime?
+  notes       String?       @db.Text
+  createdBy   String?       @db.Uuid
+  createdAt   DateTime      @default(now())
+
+  page    Page  @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  creator User? @relation("PageVersionCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@unique([pageId, version])
+  @@index([pageId, createdAt(sort: Desc)])
+  @@map("page_versions")
+}
+
+// ─── COURSES ─────────────────────────────────────────────────────────────────
+
+model Course {
+  id            String        @id @default(uuid()) @db.Uuid
+  orgId         String        @db.Uuid
+  slug          String        @db.VarChar(255)
+  title         String        @db.VarChar(255)
+  subtitle      String?       @db.VarChar(500)
+  description   String?       @db.Text
+  status        ContentStatus @default(DRAFT)
+  category      String?       @db.VarChar(100)
+  duration      String?       @db.VarChar(100)
+  eligibility   String?       @db.Text
+  curriculum    Json          @default("[]")
+  fee           Decimal?      @db.Decimal(10, 2)
+  bannerImageId String?       @db.Uuid
+  galleryIds    String[]
+  seoTitle      String?       @db.VarChar(255)
+  seoDesc       String?       @db.VarChar(500)
+  seoKeywords   String[]
+  order         Int           @default(0)
+  isFeatured    Boolean       @default(false)
+  publishedAt   DateTime?
+  scheduledAt   DateTime?
+  publishedBy   String?       @db.Uuid
+  version       Int           @default(1)
+  metadata      Json          @default("{}")
+  createdBy     String?       @db.Uuid
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  org        Organization    @relation("OrgCourses", fields: [orgId], references: [id], onDelete: Cascade)
+  creator    User?           @relation("CourseCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  publisher  User?           @relation("CoursePublisher", fields: [publishedBy], references: [id], onDelete: SetNull)
+  versions   CourseVersion[]
+  admissions Admission[]
+  feePlans   FeePlan[]
+
+  @@unique([orgId, slug])
+  @@index([orgId, status])
+  @@index([orgId, isFeatured])
+  @@index([orgId, order])
+  @@map("courses")
+}
+
+model CourseVersion {
+  id        String        @id @default(uuid()) @db.Uuid
+  orgId     String        @db.Uuid
+  courseId  String        @db.Uuid
+  version   Int
+  snapshot  Json
+  status    ContentStatus
+  notes     String?       @db.Text
+  createdBy String?       @db.Uuid
+  createdAt DateTime      @default(now())
+
+  course  Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  creator User?  @relation("CourseVersionCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@unique([courseId, version])
+  @@index([courseId, createdAt(sort: Desc)])
+  @@map("course_versions")
+}
+
+// ─── NAVIGATION ───────────────────────────────────────────────────────────────
+
+model NavMenu {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  name      String   @db.VarChar(255)
+  location  String   @db.VarChar(100)
+  items     Json     @default("[]")
+  isActive  Boolean  @default(true)
+  createdBy String?  @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org     Organization @relation("OrgNavMenus", fields: [orgId], references: [id], onDelete: Cascade)
+  creator User?        @relation("NavMenuCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@unique([orgId, location])
+  @@index([orgId, isActive])
+  @@map("nav_menus")
+}
+
+// ─── FEATURE FLAGS ───────────────────────────────────────────────────────────
+
+model FeatureFlag {
+  id          String   @id @default(uuid()) @db.Uuid
+  orgId       String   @db.Uuid
+  key         String   @db.VarChar(100)
+  value       Json
+  description String?  @db.Text
+  isEnabled   Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, key])
+  @@map("feature_flags")
+}
+
+// ─── SPRINT 4: RESOURCES CMS ─────────────────────────────────────────────────
+
+model Resource {
+  id            String        @id @default(uuid()) @db.Uuid
+  orgId         String        @db.Uuid
+  title         String        @db.VarChar(255)
+  slug          String        @db.VarChar(255)
+  description   String?       @db.Text
+  type          ResourceType
+  status        ContentStatus @default(DRAFT)
+  fileUrl       String?       @db.Text
+  externalUrl   String?       @db.Text
+  thumbnailId   String?       @db.Uuid
+  tags          String[]
+  category      String?       @db.VarChar(100)
+  isGated       Boolean       @default(false)
+  downloadCount Int           @default(0)
+  seoTitle      String?       @db.VarChar(255)
+  seoDesc       String?       @db.Text
+  publishedAt   DateTime?
+  scheduledAt   DateTime?
+  metadata      Json          @default("{}")
+  createdBy     String?       @db.Uuid
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  org     Organization @relation("OrgResources", fields: [orgId], references: [id], onDelete: Cascade)
+  creator User?        @relation("ResourceCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@unique([orgId, slug])
+  @@index([orgId, status])
+  @@index([orgId, type])
+  @@index([orgId, category])
+  @@map("resources")
+}
+
+// ─── SPRINT 4: JOBS ──────────────────────────────────────────────────────────
+
+model HiringPartner {
+  id          String   @id @default(uuid()) @db.Uuid
+  orgId       String   @db.Uuid
+  name        String   @db.VarChar(255)
+  slug        String   @db.VarChar(255)
+  logoId      String?  @db.Uuid
+  website     String?  @db.VarChar(500)
+  industry    String?  @db.VarChar(100)
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+  createdBy   String?  @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org        Organization @relation("OrgHiringPartners", fields: [orgId], references: [id], onDelete: Cascade)
+  creator    User?        @relation("HiringPartnerCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  jobs       Job[]
+  placements Placement[]
+
+  @@unique([orgId, slug])
+  @@index([orgId, isActive])
+  @@map("hiring_partners")
+}
+
+model Job {
+  id              String    @id @default(uuid()) @db.Uuid
+  orgId           String    @db.Uuid
+  hiringPartnerId String?   @db.Uuid
+  title           String    @db.VarChar(255)
+  slug            String    @db.VarChar(255)
+  description     String?   @db.Text
+  requirements    String?   @db.Text
+  location        String?   @db.VarChar(255)
+  isRemote        Boolean   @default(false)
+  jobType         String    @default("full_time") @db.VarChar(50) // full_time, part_time, contract, internship
+  salaryMin       Decimal?  @db.Decimal(12, 2)
+  salaryMax       Decimal?  @db.Decimal(12, 2)
+  currency        String    @default("INR") @db.VarChar(3)
+  experienceYears Int?
+  status          JobStatus @default(DRAFT)
+  publishedAt     DateTime?
+  closesAt        DateTime?
+  tags            String[]
+  courseIds       String[] // courses whose graduates are eligible
+  seoTitle        String?   @db.VarChar(255)
+  seoDesc         String?   @db.Text
+  metadata        Json      @default("{}")
+  publishedBy     String?   @db.Uuid
+  createdBy       String?   @db.Uuid
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  org           Organization     @relation("OrgJobs", fields: [orgId], references: [id], onDelete: Cascade)
+  hiringPartner HiringPartner?   @relation(fields: [hiringPartnerId], references: [id], onDelete: SetNull)
+  creator       User?            @relation("JobCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  publisher     User?            @relation("JobPublisher", fields: [publishedBy], references: [id], onDelete: SetNull)
+  applications  JobApplication[]
+
+  @@unique([orgId, slug])
+  @@index([orgId, status])
+  @@index([orgId, hiringPartnerId])
+  @@map("jobs")
+}
+
+model JobApplication {
+  id             String               @id @default(uuid()) @db.Uuid
+  orgId          String               @db.Uuid
+  jobId          String               @db.Uuid
+  studentId      String?              @db.Uuid
+  applicantName  String               @db.VarChar(255)
+  applicantEmail String               @db.VarChar(255)
+  applicantPhone String?              @db.VarChar(20)
+  resumeUrl      String?              @db.Text
+  coverLetter    String?              @db.Text
+  status         JobApplicationStatus @default(SUBMITTED)
+  reviewedBy     String?              @db.Uuid
+  reviewedAt     DateTime?
+  reviewNotes    String?              @db.Text
+  metadata       Json                 @default("{}")
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  org      Organization @relation("OrgJobApplications", fields: [orgId], references: [id], onDelete: Cascade)
+  job      Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  student  Student?     @relation("StudentApplications", fields: [studentId], references: [id], onDelete: SetNull)
+  reviewer User?        @relation("ApplicationReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([orgId, jobId])
+  @@index([orgId, status])
+  @@index([orgId, studentId])
+  @@map("job_applications")
+}
+
+// ─── SPRINT 4: PLACEMENTS ────────────────────────────────────────────────────
+
+model Placement {
+  id              String          @id @default(uuid()) @db.Uuid
+  orgId           String          @db.Uuid
+  studentId       String          @db.Uuid
+  hiringPartnerId String?         @db.Uuid
+  jobTitle        String          @db.VarChar(255)
+  package         Decimal?        @db.Decimal(12, 2)
+  currency        String          @default("INR") @db.VarChar(3)
+  joiningDate     DateTime?
+  status          PlacementStatus @default(PENDING)
+  isPublic        Boolean         @default(false)
+  batchYear       Int?
+  notes           String?         @db.Text
+  createdBy       String?         @db.Uuid
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  org           Organization   @relation("OrgPlacements", fields: [orgId], references: [id], onDelete: Cascade)
+  student       Student        @relation("StudentPlacements", fields: [studentId], references: [id], onDelete: Cascade)
+  hiringPartner HiringPartner? @relation(fields: [hiringPartnerId], references: [id], onDelete: SetNull)
+  creator       User?          @relation("PlacementCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([orgId, studentId])
+  @@index([orgId, status])
+  @@index([orgId, batchYear])
+  @@map("placements")
+}
+
+// ─── SPRINT 4: TESTIMONIALS ───────────────────────────────────────────────────
+
+model Testimonial {
+  id          String            @id @default(uuid()) @db.Uuid
+  orgId       String            @db.Uuid
+  studentId   String?           @db.Uuid
+  authorName  String            @db.VarChar(255)
+  authorTitle String?           @db.VarChar(255)
+  authorEmail String?           @db.VarChar(255)
+  content     String            @db.Text
+  rating      Int?
+  avatarId    String?           @db.Uuid
+  courseId    String?           @db.Uuid
+  batchYear   Int?
+  status      TestimonialStatus @default(PENDING)
+  isFeatured  Boolean           @default(false)
+  order       Int               @default(0)
+  reviewedBy  String?           @db.Uuid
+  reviewedAt  DateTime?
+  reviewNotes String?           @db.Text
+  source      String?           @db.VarChar(100)
+  metadata    Json              @default("{}")
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  org      Organization @relation("OrgTestimonials", fields: [orgId], references: [id], onDelete: Cascade)
+  student  Student?     @relation("StudentTestimonials", fields: [studentId], references: [id], onDelete: SetNull)
+  reviewer User?        @relation("TestimonialReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([orgId, status])
+  @@index([orgId, isFeatured])
+  @@index([orgId, courseId])
+  @@map("testimonials")
+}
+
+// ─── SMS / LMS (additive - does NOT replace marketing Course CMS) ────────────
+// Hierarchy: LmsCourse → LmsStage → LmsModule → LmsChapter → LmsTopic → LmsContent
+// Marketing website `Course` / `Resource` models stay untouched.
+
+enum LmsContentType {
+  PDF
+  VIDEO
+  NOTES
+  ATTACHMENT
+}
+
+enum LmsBatchType {
+  MORNING
+  EVENING
+  WEEKEND
+  CUSTOM
+}
+
+enum LmsQuestionDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum LmsAssignmentStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum LmsSubmissionStatus {
+  SUBMITTED
+  GRADED
+  RETURNED
+}
+
+enum LmsTestStatus {
+  PASS
+  FAIL
+  PENDING
+}
+
+enum LmsEnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  SUSPENDED
+  DROPPED
+}
+
+enum LmsAttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum LmsCertificateStatus {
+  DRAFT
+  ISSUED
+  REVOKED
+}
+
+model LmsCourse {
+  id                String        @id @default(uuid()) @db.Uuid
+  orgId             String        @db.Uuid
+  // Optional link to marketing CMS course (never merges schemas)
+  marketingCourseId String?       @db.Uuid
+  slug              String        @db.VarChar(255)
+  title             String        @db.VarChar(255)
+  description       String?       @db.Text
+  status            ContentStatus @default(DRAFT)
+  isPublished       Boolean       @default(false)
+  metadata          Json          @default("{}")
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  org                Organization           @relation("OrgLmsCourses", fields: [orgId], references: [id], onDelete: Cascade)
+  stages             LmsStage[]
+  teachers           LmsCourseTeacher[]
+  enrollments        LmsEnrollment[]
+  chatRooms          LmsChatRoom[]
+  certificates       LmsCertificate[]
+  attendanceSessions LmsAttendanceSession[]
+  announcements      LmsAnnouncement[]
+  batches            LmsBatch[]
+  timetableSlots     LmsTimetableSlot[]
+  assignments        LmsAssignment[]
+
+  @@unique([orgId, slug])
+  @@index([orgId, status])
+  @@map("lms_courses")
+}
+
+model LmsCourseTeacher {
+  id        String   @id @default(uuid()) @db.Uuid
+  teacherId String   @db.Uuid
+  courseId  String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  teacher User      @relation("LmsCourseTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  course  LmsCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, courseId])
+  @@index([courseId])
+  @@map("lms_course_teachers")
+}
+
+model LmsStage {
+  id       String @id @default(uuid()) @db.Uuid
+  title    String @db.VarChar(255)
+  order    Int    @default(0)
+  courseId String @db.Uuid
+
+  course  LmsCourse   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  modules LmsModule[]
+
+  @@index([courseId, order])
+  @@map("lms_stages")
+}
+
+model LmsModule {
+  id                 String  @id @default(uuid()) @db.Uuid
+  title              String  @db.VarChar(255)
+  order              Int     @default(0)
+  stageId            String  @db.Uuid
+  // e.g. unlock after N days / mock-test gate metadata
+  unlockRules        Json    @default("{}")
+  passPercent        Int     @default(70)
+  maxAttempts        Int     @default(3)
+  // Phase C - random quiz sets (null = use all questions)
+  quizQuestionCount  Int?
+  randomizeQuestions Boolean @default(false)
+
+  stage        LmsStage         @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  chapters     LmsChapter[]
+  assessments  LmsAssessment[]
+  questions    LmsQuestion[]
+  quizAttempts LmsQuizAttempt[]
+  assignments  LmsAssignment[]
+
+  @@index([stageId, order])
+  @@map("lms_modules")
+}
+
+model LmsChapter {
+  id       String @id @default(uuid()) @db.Uuid
+  title    String @db.VarChar(255)
+  order    Int    @default(0)
+  moduleId String @db.Uuid
+
+  module LmsModule  @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  topics LmsTopic[]
+
+  @@index([moduleId, order])
+  @@map("lms_chapters")
+}
+
+model LmsTopic {
+  id        String @id @default(uuid()) @db.Uuid
+  title     String @db.VarChar(255)
+  order     Int    @default(0)
+  chapterId String @db.Uuid
+
+  chapter   LmsChapter           @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  contents  LmsContent[]
+  progress  LmsStudentProgress[]
+  bookmarks LmsBookmark[]
+
+  @@index([chapterId, order])
+  @@map("lms_topics")
+}
+
+model LmsContent {
+  id       String         @id @default(uuid()) @db.Uuid
+  title    String         @db.VarChar(255)
+  type     LmsContentType
+  url      String         @db.Text
+  // Rich text / notes HTML body (Phase C)
+  body     String?        @db.Text
+  duration Int?
+  order    Int            @default(0)
+  topicId  String         @db.Uuid
+  metadata Json           @default("{}")
+
+  topic LmsTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@index([topicId, order])
+  @@map("lms_contents")
+}
+
+model LmsEnrollment {
+  id          String              @id @default(uuid()) @db.Uuid
+  orgId       String              @db.Uuid
+  studentId   String              @db.Uuid
+  courseId    String              @db.Uuid
+  batchId     String?             @db.Uuid
+  status      LmsEnrollmentStatus @default(ACTIVE)
+  enrolledAt  DateTime            @default(now())
+  completedAt DateTime?
+  metadata    Json                @default("{}")
+
+  org     Organization @relation("OrgLmsEnrollments", fields: [orgId], references: [id], onDelete: Cascade)
+  student Student      @relation("StudentLmsEnrollments", fields: [studentId], references: [id], onDelete: Cascade)
+  course  LmsCourse    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  batch   LmsBatch?    @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  @@unique([studentId, courseId])
+  @@index([orgId, status])
+  @@index([courseId])
+  @@index([batchId])
+  @@map("lms_enrollments")
+}
+
+model LmsStudentProgress {
+  id          String    @id @default(uuid()) @db.Uuid
+  studentId   String    @db.Uuid
+  // Denormalized auth user when portal login exists
+  userId      String?   @db.Uuid
+  topicId     String    @db.Uuid
+  completed   Boolean   @default(false)
+  percent     Int       @default(0)
+  completedAt DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  student Student  @relation("StudentLmsProgress", fields: [studentId], references: [id], onDelete: Cascade)
+  user    User?    @relation("LmsProgressStudent", fields: [userId], references: [id], onDelete: SetNull)
+  topic   LmsTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, topicId])
+  @@index([topicId])
+  @@map("lms_student_progress")
+}
+
+model LmsAssessment {
+  id        String        @id @default(uuid()) @db.Uuid
+  studentId String        @db.Uuid
+  userId    String?       @db.Uuid
+  moduleId  String        @db.Uuid
+  score     Int           @default(0)
+  status    LmsTestStatus @default(PENDING)
+  attempts  Int           @default(1)
+  metadata  Json          @default("{}")
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  student Student   @relation("StudentLmsAssessments", fields: [studentId], references: [id], onDelete: Cascade)
+  user    User?     @relation("LmsAssessmentStudent", fields: [userId], references: [id], onDelete: SetNull)
+  module  LmsModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, moduleId])
+  @@index([moduleId, status])
+  @@map("lms_assessments")
+}
+
+model LmsAttendanceSession {
+  id              String   @id @default(uuid()) @db.Uuid
+  orgId           String   @db.Uuid
+  courseId        String   @db.Uuid
+  batchId         String?  @db.Uuid
+  timetableSlotId String?  @db.Uuid
+  title           String   @db.VarChar(255)
+  subjectTag      String?  @db.VarChar(100)
+  heldAt          DateTime @default(now())
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
+
+  org           Organization          @relation("OrgLmsAttendanceSessions", fields: [orgId], references: [id], onDelete: Cascade)
+  course        LmsCourse             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  batch         LmsBatch?             @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  timetableSlot LmsTimetableSlot?     @relation(fields: [timetableSlotId], references: [id], onDelete: SetNull)
+  records       LmsAttendanceRecord[]
+
+  @@index([orgId, heldAt(sort: Desc)])
+  @@index([courseId])
+  @@index([batchId])
+  @@map("lms_attendance_sessions")
+}
+
+model LmsAttendanceRecord {
+  id        String              @id @default(uuid()) @db.Uuid
+  sessionId String              @db.Uuid
+  studentId String              @db.Uuid
+  status    LmsAttendanceStatus @default(PRESENT)
+  markedBy  String?             @db.Uuid
+  markedAt  DateTime            @default(now())
+  smsSentAt DateTime?
+  notes     String?             @db.Text
+
+  session LmsAttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student Student              @relation("StudentLmsAttendance", fields: [studentId], references: [id], onDelete: Cascade)
+  marker  User?                @relation("LmsAttendanceMarker", fields: [markedBy], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, studentId])
+  @@index([studentId])
+  @@map("lms_attendance_records")
+}
+
+model LmsCertificate {
+  id               String               @id @default(uuid()) @db.Uuid
+  orgId            String               @db.Uuid
+  studentId        String               @db.Uuid
+  courseId         String               @db.Uuid
+  certificateNo    String               @db.VarChar(100)
+  verificationCode String?              @db.VarChar(100)
+  title            String               @db.VarChar(255)
+  status           LmsCertificateStatus @default(DRAFT)
+  issuedAt         DateTime?
+  issuedBy         String?              @db.Uuid
+  fileUrl          String?              @db.Text
+  metadata         Json                 @default("{}")
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  org     Organization @relation("OrgLmsCertificates", fields: [orgId], references: [id], onDelete: Cascade)
+  student Student      @relation("StudentLmsCertificates", fields: [studentId], references: [id], onDelete: Cascade)
+  course  LmsCourse    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  issuer  User?        @relation("LmsCertificateIssuer", fields: [issuedBy], references: [id], onDelete: SetNull)
+
+  @@unique([orgId, certificateNo])
+  @@unique([orgId, verificationCode])
+  @@index([studentId])
+  @@index([courseId])
+  @@map("lms_certificates")
+}
+
+model LmsChatRoom {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  courseId  String   @db.Uuid
+  title     String?  @db.VarChar(255)
+  createdAt DateTime @default(now())
+
+  org      Organization @relation("OrgLmsChatRooms", fields: [orgId], references: [id], onDelete: Cascade)
+  course   LmsCourse    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  messages LmsMessage[]
+
+  @@index([orgId, courseId])
+  @@map("lms_chat_rooms")
+}
+
+model LmsMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  roomId    String   @db.Uuid
+  senderId  String   @db.Uuid
+  text      String   @db.Text
+  createdAt DateTime @default(now())
+
+  room   LmsChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender User        @relation("LmsSentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt])
+  @@map("lms_messages")
+}
+
+model LmsNotification {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  userId    String   @db.Uuid
+  title     String   @db.VarChar(255)
+  body      String   @db.Text
+  isRead    Boolean  @default(false)
+  linkUrl   String?  @db.Text
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  org  Organization @relation("OrgLmsNotifications", fields: [orgId], references: [id], onDelete: Cascade)
+  user User         @relation("LmsNotificationUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt(sort: Desc)])
+  @@index([orgId, createdAt(sort: Desc)])
+  @@map("lms_notifications")
+}
+
+// ─── LMS QUESTIONS (MCQ bank per module) ─────────────────────────────────────
+
+model LmsQuestion {
+  id              String                @id @default(uuid()) @db.Uuid
+  moduleId        String                @db.Uuid
+  stem            String                @db.Text
+  options         Json                  @default("[]")
+  correctOptionId String                @db.VarChar(50)
+  order           Int                   @default(0)
+  points          Int                   @default(1)
+  difficulty      LmsQuestionDifficulty @default(MEDIUM)
+  negativePoints  Int                   @default(0)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  module LmsModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@index([moduleId, order])
+  @@index([moduleId, difficulty])
+  @@map("lms_questions")
+}
+
+// ─── LMS QUIZ ATTEMPTS (per student per module) ───────────────────────────────
+
+model LmsQuizAttempt {
+  id            String   @id @default(uuid()) @db.Uuid
+  studentId     String   @db.Uuid
+  userId        String?  @db.Uuid
+  moduleId      String   @db.Uuid
+  answers       Json     @default("{}")
+  score         Int      @default(0)
+  maxScore      Int      @default(0)
+  passed        Boolean  @default(false)
+  attemptNumber Int      @default(1)
+  createdAt     DateTime @default(now())
+
+  student Student   @relation("StudentLmsQuizAttempts", fields: [studentId], references: [id], onDelete: Cascade)
+  user    User?     @relation("LmsQuizAttemptUser", fields: [userId], references: [id], onDelete: SetNull)
+  module  LmsModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, moduleId, attemptNumber])
+  @@index([studentId, moduleId])
+  @@index([moduleId])
+  @@map("lms_quiz_attempts")
+}
+
+// ─── LMS BOOKMARKS ────────────────────────────────────────────────────────────
+
+model LmsBookmark {
+  id        String   @id @default(uuid()) @db.Uuid
+  studentId String   @db.Uuid
+  topicId   String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  student Student  @relation("StudentLmsBookmarks", fields: [studentId], references: [id], onDelete: Cascade)
+  topic   LmsTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, topicId])
+  @@index([studentId])
+  @@map("lms_bookmarks")
+}
+
+// ─── LMS ANNOUNCEMENTS ────────────────────────────────────────────────────────
+
+model LmsAnnouncement {
+  id          String    @id @default(uuid()) @db.Uuid
+  orgId       String    @db.Uuid
+  courseId    String?   @db.Uuid
+  title       String    @db.VarChar(255)
+  body        String    @db.Text
+  publishedAt DateTime?
+  createdBy   String?   @db.Uuid
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  org     Organization @relation("OrgLmsAnnouncements", fields: [orgId], references: [id], onDelete: Cascade)
+  course  LmsCourse?   @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  creator User?        @relation("LmsAnnouncementCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([orgId, publishedAt(sort: Desc)])
+  @@index([courseId])
+  @@map("lms_announcements")
+}
+
+// ─── LMS BATCHES (Phase C) ────────────────────────────────────────────────────
+
+model LmsBatch {
+  id        String       @id @default(uuid()) @db.Uuid
+  orgId     String       @db.Uuid
+  courseId  String       @db.Uuid
+  name      String       @db.VarChar(255)
+  type      LmsBatchType @default(CUSTOM)
+  startDate DateTime?
+  endDate   DateTime?
+  capacity  Int?
+  metadata  Json         @default("{}")
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  org                Organization           @relation("OrgLmsBatches", fields: [orgId], references: [id], onDelete: Cascade)
+  course             LmsCourse              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teachers           LmsBatchTeacher[]
+  students           LmsBatchStudent[]
+  enrollments        LmsEnrollment[]
+  timetableSlots     LmsTimetableSlot[]
+  attendanceSessions LmsAttendanceSession[]
+  assignments        LmsAssignment[]
+  admissions         Admission[]
+
+  @@index([orgId, courseId])
+  @@index([orgId, type])
+  @@map("lms_batches")
+}
+
+model LmsBatchTeacher {
+  id        String   @id @default(uuid()) @db.Uuid
+  batchId   String   @db.Uuid
+  teacherId String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  batch   LmsBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  teacher User     @relation("LmsBatchTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, teacherId])
+  @@index([teacherId])
+  @@map("lms_batch_teachers")
+}
+
+model LmsBatchStudent {
+  id        String   @id @default(uuid()) @db.Uuid
+  batchId   String   @db.Uuid
+  studentId String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  batch   LmsBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  student Student  @relation("StudentLmsBatches", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, studentId])
+  @@index([studentId])
+  @@map("lms_batch_students")
+}
+
+// ─── LMS TIMETABLE (Phase C) ──────────────────────────────────────────────────
+
+model LmsTimetableSlot {
+  id             String   @id @default(uuid()) @db.Uuid
+  orgId          String   @db.Uuid
+  batchId        String   @db.Uuid
+  courseId       String?  @db.Uuid
+  teacherId      String?  @db.Uuid
+  title          String   @db.VarChar(255)
+  startsAt       DateTime
+  endsAt         DateTime
+  room           String?  @db.VarChar(100)
+  onlineUrl      String?  @db.Text
+  subjectTag     String?  @db.VarChar(100)
+  recurrenceRule Json     @default("{}")
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  org                Organization           @relation("OrgLmsTimetableSlots", fields: [orgId], references: [id], onDelete: Cascade)
+  batch              LmsBatch               @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  course             LmsCourse?             @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  teacher            User?                  @relation("LmsTimetableTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
+  attendanceSessions LmsAttendanceSession[]
+
+  @@index([orgId, startsAt])
+  @@index([batchId, startsAt])
+  @@index([teacherId, startsAt])
+  @@map("lms_timetable_slots")
+}
+
+// ─── LMS ASSIGNMENTS (Phase C) ────────────────────────────────────────────────
+
+model LmsAssignment {
+  id          String              @id @default(uuid()) @db.Uuid
+  orgId       String              @db.Uuid
+  courseId    String              @db.Uuid
+  batchId     String?             @db.Uuid
+  moduleId    String?             @db.Uuid
+  title       String              @db.VarChar(255)
+  description String?             @db.Text
+  dueAt       DateTime?
+  maxScore    Int                 @default(100)
+  status      LmsAssignmentStatus @default(DRAFT)
+  createdBy   String?             @db.Uuid
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  org         Organization              @relation("OrgLmsAssignments", fields: [orgId], references: [id], onDelete: Cascade)
+  course      LmsCourse                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  batch       LmsBatch?                 @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  module      LmsModule?                @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+  creator     User?                     @relation("LmsAssignmentCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  submissions LmsAssignmentSubmission[]
+
+  @@index([orgId, courseId])
+  @@index([batchId])
+  @@index([status])
+  @@map("lms_assignments")
+}
+
+model LmsAssignmentSubmission {
+  id           String              @id @default(uuid()) @db.Uuid
+  assignmentId String              @db.Uuid
+  studentId    String              @db.Uuid
+  fileUrl      String?             @db.Text
+  body         String?             @db.Text
+  score        Int?
+  status       LmsSubmissionStatus @default(SUBMITTED)
+  feedback     String?             @db.Text
+  submittedAt  DateTime            @default(now())
+  gradedAt     DateTime?
+  gradedBy     String?             @db.Uuid
+
+  assignment LmsAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student    Student       @relation("StudentLmsSubmissions", fields: [studentId], references: [id], onDelete: Cascade)
+  grader     User?         @relation("LmsSubmissionGrader", fields: [gradedBy], references: [id], onDelete: SetNull)
+
+  @@unique([assignmentId, studentId])
+  @@index([studentId])
+  @@map("lms_assignment_submissions")
+}
+
+// ─── FRONTEND FAILSAFE (exists in Supabase; must stay in schema to prevent DROP) ──
+// Written by marketing site lead fallback - not Admin CRM. Do not remove.
+
+model FallbackLead {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  name       String
+  phone      String
+  email      String?
+  pincode    String?
+  course     String?
+  source     String?
+  retryCount Int      @default(0) @map("retry_count")
+  status     String   @default("pending")
+
+  @@map("fallback_leads")
+}

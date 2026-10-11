@@ -1,0 +1,211 @@
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+@theme inline {
+  --color-background: var(--air-bg);
+  --color-foreground: var(--air-fg);
+  --color-card: var(--air-card);
+  --color-card-foreground: var(--air-card-fg);
+  --color-popover: var(--air-popover);
+  --color-popover-foreground: var(--air-popover-fg);
+  --color-primary: hsl(221 83% 53%);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--air-secondary);
+  --color-secondary-foreground: var(--air-secondary-fg);
+  --color-muted: var(--air-muted);
+  --color-muted-foreground: var(--air-muted-fg);
+  --color-accent: var(--air-accent);
+  --color-accent-foreground: var(--air-accent-fg);
+  --color-destructive: hsl(0 84% 60%);
+  --color-destructive-foreground: #ffffff;
+  --color-border: var(--air-border);
+  --color-input: var(--air-input);
+  --color-ring: hsl(221 83% 53%);
+  --color-success: hsl(142 71% 45%);
+  --color-warning: hsl(38 92% 50%);
+  --radius: 0.75rem;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ─── Default: Dark ─────────────────────────────────────────────────────── */
+:root {
+  --air-bg: hsl(222 84% 4%);
+  --air-fg: hsl(210 40% 98%);
+  --air-card: hsl(222 84% 6%);
+  --air-card-fg: hsl(210 40% 98%);
+  --air-popover: hsl(222 84% 6%);
+  --air-popover-fg: hsl(210 40% 98%);
+  --air-secondary: hsl(217 33% 17%);
+  --air-secondary-fg: hsl(210 40% 98%);
+  --air-muted: hsl(217 33% 13%);
+  --air-muted-fg: hsl(215 20% 65%);
+  --air-accent: hsl(217 33% 17%);
+  --air-accent-fg: hsl(210 40% 98%);
+  --air-border: hsl(217 33% 17%);
+  --air-input: hsl(217 33% 17%);
+  --air-glass: rgba(13, 20, 38, 0.65);
+  --air-glass-card: rgba(17, 25, 45, 0.55);
+  --air-glass-card-hover: rgba(23, 32, 58, 0.75);
+  --air-glass-border: rgba(255, 255, 255, 0.08);
+  --air-white-05: rgba(255, 255, 255, 0.05);
+  --air-white-10: rgba(255, 255, 255, 0.1);
+  --air-white-15: rgba(255, 255, 255, 0.15);
+  --air-full: rgba(255, 255, 255, 1);
+  --air-full-90: rgba(255, 255, 255, 0.9);
+  --air-full-60: rgba(255, 255, 255, 0.6);
+  --air-dark-surface: hsl(222 84% 6%);
+  color-scheme: dark;
+}
+
+/* ─── Light ─────────────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --air-bg: hsl(210 40% 98%);
+  --air-fg: hsl(222 47% 11%);
+  --air-card: hsl(0 0% 100%);
+  --air-card-fg: hsl(222 47% 11%);
+  --air-popover: hsl(0 0% 100%);
+  --air-popover-fg: hsl(222 47% 11%);
+  --air-secondary: hsl(210 40% 94%);
+  --air-secondary-fg: hsl(222 47% 11%);
+  --air-muted: hsl(210 40% 92%);
+  --air-muted-fg: hsl(215 16% 45%);
+  --air-accent: hsl(210 40% 94%);
+  --air-accent-fg: hsl(222 47% 11%);
+  --air-border: hsl(214 32% 88%);
+  --air-input: hsl(214 32% 88%);
+  --air-glass: rgba(255, 255, 255, 0.75);
+  --air-glass-card: rgba(255, 255, 255, 0.6);
+  --air-glass-card-hover: rgba(255, 255, 255, 0.85);
+  --air-glass-border: rgba(15, 23, 42, 0.12);
+  --air-white-05: rgba(15, 23, 42, 0.05);
+  --air-white-10: rgba(15, 23, 42, 0.1);
+  --air-white-15: rgba(15, 23, 42, 0.15);
+  --air-full: hsl(222 84% 6%);
+  --air-full-90: hsla(222, 84%, 6%, 0.9);
+  --air-full-60: hsla(222, 84%, 6%, 0.6);
+  --air-dark-surface: hsl(0 0% 100%);
+  color-scheme: light;
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  font-feature-settings: "rlig" 1, "calt" 1;
+  overflow-x: hidden;
+}
+
+/* Premium Glassmorphism & SaaS Utilities */
+.glass-panel {
+  background: var(--air-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--air-glass-border);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
+}
+
+.glass-card {
+  background: var(--air-glass-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--air-glass-border);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-card:hover {
+  background: var(--air-glass-card-hover);
+  border-color: var(--air-glass-border);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
+}
+
+.cyber-gradient {
+  background: linear-gradient(135deg, hsl(221 83% 53%), hsl(260 83% 58%));
+}
+
+.glow-border {
+  position: relative;
+}
+.glow-border::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.02));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: hsl(217 33% 30%); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(217 33% 40%); }
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: hsl(214 20% 70%); border-radius: 3px; }
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: hsl(214 20% 60%); }
+
+/* ─── Light-theme overrides for legacy hardcoded dark utilities ──────────
+   The admin UI historically relied on hardcoded dark utility classes
+   (text-white, border-white/10, bg-slate-900/*, bg-white/*, etc.). Rather
+   than rewrite hundreds of component files, we re-map those classes to
+   theme-aware tokens under the [data-theme="light"] scope so no dark-only
+   surface remains. Matching specificity of the generated utilities.       */
+[data-theme="light"] .text-white { color: var(--air-full) !important; }
+[data-theme="light"] .text-white\/90 { color: var(--air-full-90) !important; }
+[data-theme="light"] .text-white\/60 { color: var(--air-full-60) !important; }
+
+[data-theme="light"] .border-white\/10 { border-color: var(--air-white-10) !important; }
+[data-theme="light"] .border-white\/15 { border-color: var(--air-white-15) !important; }
+[data-theme="light"] .border-white\/5 { border-color: var(--air-white-05) !important; }
+[data-theme="light"] .border-white { border-color: var(--air-white-15) !important; }
+[data-theme="light"] .divide-white\/10 > :not([hidden]) ~ :not([hidden]) { border-color: var(--air-white-10) !important; }
+
+[data-theme="light"] .bg-white\/5 { background-color: var(--air-white-05) !important; }
+[data-theme="light"] .bg-white\/10 { background-color: var(--air-white-10) !important; }
+[data-theme="light"] .hover\:bg-white\/5:hover { background-color: var(--air-white-05) !important; }
+[data-theme="light"] .hover\:bg-white\/10:hover { background-color: var(--air-white-10) !important; }
+
+[data-theme="light"] .bg-slate-900 { background-color: var(--air-card) !important; }
+[data-theme="light"] .bg-slate-900\/90 { background-color: var(--air-card) !important; }
+[data-theme="light"] .bg-slate-900\/95 { background-color: var(--air-card) !important; }
+[data-theme="light"] .bg-slate-900\/80 { background-color: var(--air-card) !important; }
+[data-theme="light"] .bg-slate-900\/70 { background-color: var(--air-card) !important; }
+[data-theme="light"] .bg-slate-900\/60 { background-color: var(--air-card) !important; }
+[data-theme="light"] .bg-slate-900\/50 { background-color: var(--air-card) !important; }
+[data-theme="light"] .bg-slate-950 { background-color: var(--air-bg) !important; }
+[data-theme="light"] .bg-slate-800 { background-color: var(--air-secondary) !important; }
+[data-theme="light"] .bg-slate-900\/40 { background-color: var(--air-muted) !important; }
+
+[data-theme="light"] .text-slate-300 { color: hsl(215 16% 45%) !important; }
+[data-theme="light"] .text-slate-400 { color: hsl(215 16% 45%) !important; }
+[data-theme="light"] .text-slate-500 { color: hsl(215 16% 45%) !important; }
+
+/* Light surfaces should not be fully opaque white text panels */
+[data-theme="light"] .bg-primary\/20 { background-color: hsl(221 83% 93%) !important; }
+[data-theme="light"] .bg-primary\/10 { background-color: hsl(221 83% 95%) !important; }
+[data-theme="light"] .hover\:bg-primary\/10:hover { background-color: hsl(221 83% 93%) !important; }
+
+/* Dark text on colored badges stays readable on light backgrounds */
+[data-theme="light"] .text-emerald-400,
+[data-theme="light"] .text-amber-400,
+[data-theme="light"] .text-rose-400,
+[data-theme="light"] .text-sky-400,
+[data-theme="light"] .text-teal-400,
+[data-theme="light"] .text-lime-400,
+[data-theme="light"] .text-cyan-400,
+[data-theme="light"] .text-violet-400,
+[data-theme="light"] .text-purple-400,
+[data-theme="light"] .text-indigo-400,
+[data-theme="light"] .text-blue-400 { filter: brightness(0.55) saturate(1.2); }
+
+/* Keep select/dropdown native option text readable */
+[data-theme="light"] select option,
+[data-theme="light"] optgroup { background-color: #ffffff; color: hsl(222 47% 11%); }
