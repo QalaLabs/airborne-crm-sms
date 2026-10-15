@@ -101,6 +101,11 @@ export async function executeAction(
       const leadIdRaw =
         ctx.entityType === "lead" ? ctx.entityId : resolvePath(snapshotCtx, "leadId");
       const leadId = typeof leadIdRaw === "string" ? leadIdRaw : undefined;
+      const bodyValues = step.bodyValues?.map((v) => interpolate(String(v), snapshotCtx));
+      // Never send a template with an unresolved {{placeholder}} to a real person.
+      if (bodyValues?.some((v) => /\{\{[^}]*\}\}/.test(v))) {
+        return { ok: true, skipped: true, detail: "Unresolved template variable; send skipped" };
+      }
       const status = await NotificationService.dispatch({
         orgId: ctx.orgId,
         event: "WORKFLOW_TRIGGERED",
@@ -110,6 +115,8 @@ export async function executeAction(
         entityType: ctx.entityType.toLowerCase(),
         entityId: ctx.entityId,
         templateName: step.templateName,
+        bodyValues,
+        providerCampaignId: step.providerCampaignId,
         idempotencyKey: ctx.idempotencyKey,
         metadata: {
           ...(leadId ? { leadId } : {}),
@@ -316,6 +323,7 @@ export async function stopAllRunsForEntity(
   entityId: string,
   reason: string,
   exceptRunId?: string,
+  onlyWorkflowCode?: string,
 ): Promise<number> {
   const result = await prisma.workflowRun.updateMany({
     where: {
@@ -324,6 +332,7 @@ export async function stopAllRunsForEntity(
       entityId,
       status: { in: ["RUNNING", "PAUSED"] },
       ...(exceptRunId && { id: { not: exceptRunId } }),
+      ...(onlyWorkflowCode && { workflow: { code: onlyWorkflowCode } }),
     },
     data: { status: "STOPPED", stoppedReason: reason, stoppedAt: new Date(), completedAt: new Date() },
   });

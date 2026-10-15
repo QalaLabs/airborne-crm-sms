@@ -12,6 +12,7 @@ import { processWorkflowRunWithClaim } from "@/lib/automation/workflow-dispatche
 import { getProvider } from "@/lib/messaging";
 import { InteraktProvider } from "@/lib/messaging/providers/interakt.provider";
 import { isLeadCreatedEventName } from "@/lib/messaging/providers/interakt/mapping";
+import { CPL_NURTURE_WORKFLOW_CODE } from "@/lib/workflow/cpl-status-nurture";
 import { matchAndStartRuns } from "@/lib/workflow/engine";
 import type { AppEvent } from "@/types";
 
@@ -86,20 +87,20 @@ export async function dispatchEventRecord(row: {
     await runEventSideEffects(event);
 
     // Interakt Advanced owns lead-created WhatsApp delays/templates.
-    // Do not start Airborne SEND_WHATSAPP nurture when Interakt is live.
-    if (!shouldSkipAirborneLeadNurture(event.name)) {
-      const match = await matchAndStartRuns({
-        orgId: event.orgId,
-        rawEventName: event.name,
-        actorId: event.actorId,
-        actorName: event.actorName,
-        requestId: event.requestId,
-        data: payload,
-      });
+    // When Interakt is live, only the CPL nurture (CRM-orchestrated, Interakt
+    // templates) may start on lead creation; all other Airborne nurture is skipped.
+    const match = await matchAndStartRuns({
+      orgId: event.orgId,
+      rawEventName: event.name,
+      actorId: event.actorId,
+      actorName: event.actorName,
+      requestId: event.requestId,
+      data: payload,
+      ...(shouldSkipAirborneLeadNurture(event.name) && { onlyCodes: [CPL_NURTURE_WORKFLOW_CODE] }),
+    });
 
-      for (const runId of match.runIds) {
-        await processWorkflowRunWithClaim(runId);
-      }
+    for (const runId of match.runIds) {
+      await processWorkflowRunWithClaim(runId);
     }
 
     await prisma.internalEvent.update({

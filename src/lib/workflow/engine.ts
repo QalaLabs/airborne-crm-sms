@@ -26,6 +26,8 @@ export async function matchAndStartRuns(input: {
   actorName?: string;
   requestId?: string;
   data: Record<string, unknown>;
+  /** When set, only workflows with these codes are considered. */
+  onlyCodes?: string[];
 }): Promise<MatchResult> {
   const canonical = normalizeEventName(input.rawEventName);
   if (!canonical) return { created: 0, duplicates: 0, runIds: [] };
@@ -39,7 +41,12 @@ export async function matchAndStartRuns(input: {
   // Only workflows that are active AND configured for this trigger. Condition
   // evaluation needs a snapshot, so fetch candidates first, snapshot once.
   const candidates = await prisma.workflow.findMany({
-    where: { orgId: input.orgId, isActive: true, triggerEvent: trigger },
+    where: {
+      orgId: input.orgId,
+      isActive: true,
+      triggerEvent: trigger,
+      ...(input.onlyCodes && { code: { in: input.onlyCodes } }),
+    },
     select: { id: true, code: true, name: true, triggerConditions: true },
     orderBy: { createdAt: "asc" },
   });

@@ -51,6 +51,8 @@ export const workflowStepSchema: z.ZodType<WorkflowStepShape> = z.lazy(() =>
       type: z.literal("SEND_WHATSAPP"),
       templateName: z.string().max(255).optional(),
       variables: z.record(z.string().max(2000)).optional(),
+      bodyValues: z.array(z.string().max(1024)).max(10).optional(),
+      providerCampaignId: z.string().max(255).optional(),
     }),
     z.object({
       ...stepBase,
@@ -102,6 +104,7 @@ export const workflowStepSchema: z.ZodType<WorkflowStepShape> = z.lazy(() =>
       type: z.literal("STOP_WORKFLOW"),
       reason: z.string().max(500).optional(),
       stopAllForEntity: z.boolean().optional(),
+      onlyWorkflowCode: z.string().min(1).max(100).optional(),
     }),
     z.object({
       ...stepBase,

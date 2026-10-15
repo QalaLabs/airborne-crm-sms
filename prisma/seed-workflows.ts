@@ -1,4 +1,13 @@
 import { PrismaClient } from "@prisma/client";
+import {
+  buildCplNurtureKillSteps,
+  buildCplNurtureSteps,
+  CPL_NURTURE_KILL_TRIGGER_CONDITIONS,
+  CPL_NURTURE_KILL_WORKFLOW_CODE,
+  CPL_NURTURE_TRIGGER_CONDITIONS,
+  CPL_NURTURE_TRIGGER_EVENT,
+  CPL_NURTURE_WORKFLOW_CODE,
+} from "../src/lib/workflow/cpl-status-nurture";
 
 const prisma = new PrismaClient();
 
@@ -272,6 +281,42 @@ async function main() {
     },
   });
   console.log("✅ Workflow: lms-course-welcome");
+
+  // ─── 6. CPL status-triggered nurture (21 days, Interakt templates) ──────────
+  //
+  // Seeded INACTIVE. Activate only after every template is approved in Interakt
+  // and its body values are confirmed (see cpl-status-nurture.ts). Re-running the
+  // seed refreshes steps/conditions but never flips isActive.
+
+  const nurtureCampaignId = process.env.INTERAKT_CPL_NURTURE_CAMPAIGN_ID?.trim() || undefined;
+  const nurtureData = {
+    name: "CPL Status Nurture (21 days)",
+    description:
+      "Starts the moment a Commercial Pilot License lead is created at NEW status (Day 1 immediately). 8 Interakt templates over 21 days. Stops only on WhatsApp opt-out or an exit status; replies do not stop it.",
+    triggerEvent: CPL_NURTURE_TRIGGER_EVENT,
+    triggerConditions: CPL_NURTURE_TRIGGER_CONDITIONS as unknown as object,
+    steps: buildCplNurtureSteps(nurtureCampaignId) as unknown as object[],
+  };
+  await prisma.workflow.upsert({
+    where: { orgId_code: { orgId: org.id, code: CPL_NURTURE_WORKFLOW_CODE } },
+    update: nurtureData,
+    create: { orgId: org.id, code: CPL_NURTURE_WORKFLOW_CODE, isActive: false, ...nurtureData },
+  });
+  console.log("✅ Workflow: cpl-status-nurture-21d (inactive)");
+
+  const killData = {
+    name: "CPL Nurture Kill Switch",
+    description: "Stops the CPL nurture the moment a lead moves to an exit status.",
+    triggerEvent: "LEAD_STATUS_CHANGED" as const,
+    triggerConditions: CPL_NURTURE_KILL_TRIGGER_CONDITIONS as unknown as object,
+    steps: buildCplNurtureKillSteps() as unknown as object[],
+  };
+  await prisma.workflow.upsert({
+    where: { orgId_code: { orgId: org.id, code: CPL_NURTURE_KILL_WORKFLOW_CODE } },
+    update: killData,
+    create: { orgId: org.id, code: CPL_NURTURE_KILL_WORKFLOW_CODE, isActive: false, ...killData },
+  });
+  console.log("✅ Workflow: cpl-status-nurture-kill (inactive)");
 
   console.log("\n🌱 Workflow seed complete.");
 }

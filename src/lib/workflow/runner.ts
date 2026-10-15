@@ -203,7 +203,14 @@ export async function executeRun(runId: string, stepApi: InngestStepApi): Promis
       const reason = step.reason ?? "Stopped by workflow step";
       await stepApi.run(`stop-${cursor}`, async () => {
         if (step.stopAllForEntity) {
-          await stopAllRunsForEntity(run.orgId, run.entityType, run.entityId, reason, run.id);
+          await stopAllRunsForEntity(
+            run.orgId,
+            run.entityType,
+            run.entityId,
+            reason,
+            run.id,
+            step.onlyWorkflowCode,
+          );
         }
         await markStatus(run.id, RUN_STATUS.STOPPED, { stoppedReason: reason });
         await AuditService.write({

@@ -41,6 +41,10 @@ export type WorkflowStep =
       /** NotificationTemplate name override; falls back to WORKFLOW_TRIGGERED template. */
       templateName?: string;
       variables?: Record<string, string>;
+      /** Ordered Interakt {{1}} {{2}} … template values; each is interpolated from the entity snapshot. */
+      bodyValues?: string[];
+      /** Interakt API campaign id for this send; falls back to INTERAKT_API_CAMPAIGN_ID. */
+      providerCampaignId?: string;
     })
   | (StepBase & {
       type: "SEND_EMAIL";
@@ -80,6 +84,8 @@ export type WorkflowStep =
       reason?: string;
       /** Also stop every other active run for the same entity. */
       stopAllForEntity?: boolean;
+      /** With stopAllForEntity: only stop runs of the workflow with this code. */
+      onlyWorkflowCode?: string;
     })
   | (StepBase & { type: "START_WORKFLOW"; workflowCode: string });
 

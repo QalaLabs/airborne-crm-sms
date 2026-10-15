@@ -18,6 +18,10 @@ interface NotificationDispatchParams {
   entityType?: string;
   entityId?: string;
   templateName?: string;
+  /** Ordered Interakt template body values; overrides the rendered body fallback. */
+  bodyValues?: string[];
+  /** Interakt API campaign id (analytics grouping). */
+  providerCampaignId?: string;
   idempotencyKey?: string;
   metadata?: Record<string, string>;
 }
@@ -114,6 +118,8 @@ export class NotificationService {
           subject,
           body,
           templateName: providerTemplateName,
+          bodyValues: params.bodyValues,
+          providerCampaignId: params.providerCampaignId,
           metadata: {
             ...(params.metadata ?? {}),
             ...(params.entityId ? { leadId: params.entityId } : {}),
@@ -168,6 +174,8 @@ export class NotificationService {
         subject,
         body,
         templateName: providerTemplateName,
+        bodyValues: params.bodyValues,
+        providerCampaignId: params.providerCampaignId,
         metadata: {
           ...(params.metadata ?? {}),
           ...(params.entityId ? { leadId: params.entityId } : {}),
@@ -232,6 +240,8 @@ async function dispatchToProvider(input: {
   subject: string | null;
   body: string;
   templateName?: string;
+  bodyValues?: string[];
+  providerCampaignId?: string;
   metadata?: Record<string, string>;
 }): Promise<{ status: DeliveryStatus; errorMsg?: string; externalId?: string }> {
   if (input.channel !== "EMAIL" && input.channel !== "SMS" && input.channel !== "WHATSAPP") {
@@ -246,6 +256,8 @@ async function dispatchToProvider(input: {
     subject: input.subject ?? undefined,
     body: input.body,
     templateName: input.templateName,
+    bodyValues: input.bodyValues,
+    providerCampaignId: input.providerCampaignId,
     metadata: input.metadata,
   });
 }
