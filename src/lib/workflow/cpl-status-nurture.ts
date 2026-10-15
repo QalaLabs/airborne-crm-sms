@@ -35,12 +35,13 @@ export const CPL_NURTURE_EXIT_STATUSES = [
 ] as const;
 
 /**
- * Course slugs allowed into the nurture. Resolved by the CRM's course classifier
- * (lead snapshot `courseSlug`), so A320 simulator, airline preparation, cadet,
- * cabin crew, ATPL, PPL, ground school and combos like "CPL & Airline Preparation"
+ * Course slugs allowed into the nurture: the CPL course and DGCA CPL Ground
+ * Classes (the CRM classifies those as ground-school). Resolved by the CRM's
+ * course classifier (lead snapshot `courseSlug`), so A320 simulator, airline preparation, cadet,
+ * cabin crew, ATPL, PPL and combos like "CPL & Airline Preparation"
  * never enter. Extend this list deliberately if more courses should.
  */
-export const CPL_NURTURE_COURSE_SLUGS = ["commercial-pilot-license-cpl"] as const;
+export const CPL_NURTURE_COURSE_SLUGS = ["commercial-pilot-license-cpl", "ground-school"] as const;
 
 const CPL_COURSE: ConditionSpec = {
   field: "courseSlug",

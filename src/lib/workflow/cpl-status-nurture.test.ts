@@ -80,6 +80,11 @@ test("entry: CPL lead created at NEW matches", () => {
   assert.equal(evaluateCondition(CPL_NURTURE_TRIGGER_CONDITIONS, withSlug({ ...lead, courseInterest: "DGCA CPL" })), true);
 });
 
+test("entry: DGCA CPL Ground Classes leads match", () => {
+  const ctx = withSlug({ ...lead, courseInterest: "DGCA CPL Ground Classes (₹2,70,000)" });
+  assert.equal(evaluateCondition(CPL_NURTURE_TRIGGER_CONDITIONS, ctx), true);
+});
+
 test("entry: rejects non-CPL, opted-out, non-NEW status, no phone, already active", () => {
   const no = (patch: Record<string, unknown>) =>
     assert.equal(evaluateCondition(CPL_NURTURE_TRIGGER_CONDITIONS, withSlug({ ...lead, ...patch })), false);
@@ -91,7 +96,6 @@ test("entry: rejects non-CPL, opted-out, non-NEW status, no phone, already activ
   no({ courseInterest: "CPL & Airline Preparation" });
   no({ courseInterest: "ATPL Ground School (₹1,50,000)" });
   no({ courseInterest: "Private Pilot License (PPL)" });
-  no({ courseInterest: "DGCA CPL Ground Classes (₹2,70,000)" });
   no({ courseInterest: "Cadet Pilot Program" });
   no({ courseInterest: null });
   no({ whatsappOptOut: true });
