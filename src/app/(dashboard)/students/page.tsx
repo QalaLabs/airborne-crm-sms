@@ -38,7 +38,7 @@ interface Student {
   admissions?: { feePaid?: string | number | null; feeBalance?: string | number | null }[];
 }
 
-const STUDENT_STATUSES = ["all", "ACTIVE", "GRADUATED", "DROPPED", "SUSPENDED", "ON_HOLD"];
+const STUDENT_STATUSES = ["all", "DRAFT", "ACTIVE", "GRADUATED", "DROPPED", "SUSPENDED", "ON_HOLD"];
 
 export default function StudentsPage() {
   const [pagination, setPagination] = React.useState<PaginationState>({ pageIndex: 0, pageSize: 20 });

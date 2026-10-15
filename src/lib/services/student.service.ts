@@ -9,6 +9,7 @@ import type { RequestContext } from "@/types";
 
 // Phase O — canonical lifecycle. Terminal statuses are never re-entered.
 export const STUDENT_STATUS_TRANSITIONS: Record<StudentStatus, StudentStatus[]> = {
+  DRAFT: ["ACTIVE", "DROPPED"],
   ACTIVE: ["GRADUATED", "DROPPED", "SUSPENDED", "ON_HOLD"],
   ON_HOLD: ["ACTIVE", "DROPPED"],
   SUSPENDED: ["ACTIVE", "DROPPED"],

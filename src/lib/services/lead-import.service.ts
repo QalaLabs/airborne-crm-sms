@@ -22,6 +22,7 @@ export interface LeadImportResult {
 }
 
 const CHUNK = 500;
+const WON_IMPORT_STATUSES = new Set<string>(["WON", "CONVERTED"]);
 
 /**
  * Bulk import of historical leads. Deliberately does NOT emit lead.created
@@ -101,6 +102,7 @@ export class LeadImportService {
 
       const idByPhone = new Map(inserted.map((l) => [l.phone, l.id]));
       const insertedRows = chunk.filter((r) => idByPhone.has(r.phone));
+      await this.provisionDraftDossiers(ctx, batchId, insertedRows, idByPhone);
       if (insertedRows.length > 0) {
         await prisma.leadActivity.createMany({
           data: insertedRows.map((r) => ({
@@ -128,6 +130,94 @@ export class LeadImportService {
     });
 
     return { dryRun, totalRows: rows.length, toCreate: ready.length, created, duplicates, errors, batchId };
+  }
+
+  /**
+   * Imported leads that are already won (WON / CONVERTED) were admitted before
+   * the import, so each gets a draft application dossier (stage ENQUIRY) and a
+   * DRAFT student record. Staff complete the dossier; enrolling it flips the
+   * student to ACTIVE through the normal admission flow.
+   */
+  private static async provisionDraftDossiers(
+    ctx: RequestContext,
+    batchId: string,
+    rows: (PreparedImportRow & { counselorId: string | null })[],
+    idByPhone: Map<string, string>,
+  ) {
+    const won = rows.filter((r) => WON_IMPORT_STATUSES.has(r.status));
+    if (won.length === 0) return;
+
+    const year = new Date().getFullYear();
+    const base = await prisma.admission.count({ where: { orgId: ctx.orgId } });
+    const now = new Date();
+
+    await prisma.$transaction(
+      async (tx) => {
+        for (const [i, row] of won.entries()) {
+          const leadId = idByPhone.get(row.phone)!;
+          const applicationNo = `APP-${year}-${String(base + i + 1).padStart(5, "0")}`;
+          const [firstName, ...rest] = row.name.trim().split(/\s+/);
+          const email = row.email?.trim() || `student+${applicationNo.toLowerCase()}@airborne.local`;
+
+          const student = await tx.student.create({
+            data: {
+              orgId: ctx.orgId,
+              studentCode: `STU-${applicationNo}`,
+              firstName: firstName || row.name,
+              lastName: rest.join(" ") || "-",
+              email: email.toLowerCase(),
+              phone: row.phone,
+              nationality: "Indian",
+              medicalFitness: false,
+              status: "DRAFT",
+              leadId,
+              customFields: { imported: true, importBatchId: batchId } as Prisma.InputJsonValue,
+            },
+            select: { id: true },
+          });
+
+          const admission = await tx.admission.create({
+            data: {
+              orgId: ctx.orgId,
+              leadId,
+              studentId: student.id,
+              applicationNo,
+              stage: "ENQUIRY",
+              courseName: row.courseInterest ?? null,
+              counselorId: row.counselorId,
+              stageChangedAt: now,
+              stageChangedBy: ctx.user.id,
+              notes: "Draft dossier created from imported won lead",
+              metadata: { draft: true, imported: true, importBatchId: batchId } as Prisma.InputJsonValue,
+            },
+            select: { id: true },
+          });
+
+          await tx.admissionStageLog.create({
+            data: {
+              orgId: ctx.orgId,
+              admissionId: admission.id,
+              toStage: "ENQUIRY",
+              notes: "Draft dossier from import",
+              changedBy: ctx.user.id,
+            },
+          });
+          await tx.leadActivity.create({
+            data: {
+              leadId,
+              orgId: ctx.orgId,
+              performedBy: ctx.user.id,
+              activityType: "NOTE",
+              title: "Draft admission & student created",
+              notes: `Imported as ${row.status}; draft dossier ${applicationNo} awaits completion.`,
+              completedAt: now,
+              metadata: { admissionId: admission.id, studentId: student.id } as Prisma.InputJsonValue,
+            },
+          });
+        }
+      },
+      { timeout: 60_000 },
+    );
   }
 
   // unique(orgId, phone) spans soft-deleted rows too, so they count as existing.

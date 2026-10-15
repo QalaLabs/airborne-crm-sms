@@ -50,6 +50,15 @@ test("A1: CSV import maps walk-in spellings to WALK_IN", () => {
   }
 });
 
+test("PNS_CALL is a canonical source with label, option and import mapping", () => {
+  assert.equal(createLeadSchema.parse({ ...baseLead, source: "PNS_CALL" }).source, "PNS_CALL");
+  assert.equal(leadSourceLabel("PNS_CALL"), "PNS Call");
+  assert.ok(LEAD_SOURCE_OPTIONS.some((o) => o.value === "PNS_CALL" && o.label === "PNS Call"));
+  for (const raw of ["PNS_CALL", "PNS Call", "pns-call", "pns"]) {
+    assert.equal(resolveImportSource(raw), "PNS_CALL", raw);
+  }
+});
+
 // ── A3: initial status ──────────────────────────────────────────────
 test("A3: initial statuses exclude locked, lost, legacy and PROSPECT", () => {
   for (const s of [...LOCKED_LEAD_STATUSES, ...LOST_STATUSES, ...LEGACY_LEAD_STATUSES, LeadStatus.PROSPECT]) {

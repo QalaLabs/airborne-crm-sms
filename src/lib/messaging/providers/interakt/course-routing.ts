@@ -47,6 +47,7 @@ export function leadSourceGroup(source?: string | null): LeadSourceGroup {
       return "website";
     case "DIRECT":
     case "WALK_IN":
+    case "PNS_CALL":
       return "manual";
     case "REFERRAL":
       return "referral";

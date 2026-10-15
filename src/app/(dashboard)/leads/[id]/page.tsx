@@ -1,5 +1,6 @@
 "use client";
 
+import { admissionStageLabel, canonicalAdmissionStage } from "@/lib/admissions/stage-labels";
 import * as React from "react";
 import { useSession } from "next-auth/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -178,10 +179,8 @@ const LOST_STATUSES = new Set<string>([
 
 const DEAL_STAGE_ORDER = [
   "ENQUIRY",
-  "DOCUMENT_COLLECTION",
-  "VERIFICATION",
-  "OFFER_LETTER",
   "FEE_PAYMENT",
+  "VERIFICATION",
   "ENROLLED",
   "DROPPED",
   "CANCELLED",
@@ -1076,17 +1075,11 @@ export default function LeadDetailPage() {
               ) : null}
               {activeDeal && !activeDeal.wonAt && !activeDeal.lostAt && (
                 <div className="flex flex-wrap gap-2 pt-1">
-                  {[
-                    "DOCUMENT_COLLECTION",
-                    "VERIFICATION",
-                    "OFFER_LETTER",
-                    "FEE_PAYMENT",
-                    "ENROLLED",
-                  ]
+                  {["FEE_PAYMENT", "VERIFICATION", "ENROLLED"]
                     .filter(
                       (s) =>
                         DEAL_STAGE_ORDER.indexOf(s) >
-                        DEAL_STAGE_ORDER.indexOf(activeDeal.stage),
+                        DEAL_STAGE_ORDER.indexOf(canonicalAdmissionStage(activeDeal.stage)),
                     )
                     .map((nextStage) => (
                       <Button
@@ -1101,7 +1094,7 @@ export default function LeadDetailPage() {
                             : dealStageMutation.mutate({ dealId: activeDeal.id, stage: nextStage })
                         }
                       >
-                        {nextStage.replace(/_/g, " ")}
+                        {admissionStageLabel(nextStage)}
                       </Button>
                     ))}
                   {["DROPPED", "CANCELLED"].map((lostStage) => (
@@ -1113,7 +1106,7 @@ export default function LeadDetailPage() {
                       disabled={dealStageMutation.isPending}
                       onClick={() => dealStageMutation.mutate({ dealId: activeDeal.id, stage: lostStage })}
                     >
-                      {lostStage.replace(/_/g, " ")}
+                      {admissionStageLabel(lostStage)}
                     </Button>
                   ))}
                 </div>

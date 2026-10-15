@@ -1,5 +1,6 @@
 "use client";
 
+import { admissionStageLabel, canonicalAdmissionStage } from "@/lib/admissions/stage-labels";
 import * as React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -173,14 +174,12 @@ const PAYMENT_METHODS = ["CASH", "UPI", "BANK_TRANSFER", "CARD", "CHEQUE", "DD"]
 const FEE_TYPES = ["registration", "tuition", "exam", "hostel", "other"] as const;
 
 const STAGES = [
-  { key: "ENQUIRY", label: "Enquiry", color: "border-slate-500/50 text-slate-400", bg: "bg-slate-500/10", icon: User },
-  { key: "DOCUMENT_COLLECTION", label: "Document Collection", color: "border-blue-500/50 text-blue-400", bg: "bg-blue-500/10", icon: FileSearch },
-  { key: "VERIFICATION", label: "Verification", color: "border-amber-500/50 text-amber-400", bg: "bg-amber-500/10", icon: ShieldCheck },
-  { key: "OFFER_LETTER", label: "Offer Letter", color: "border-purple-500/50 text-purple-400", bg: "bg-purple-500/10", icon: Award },
-  { key: "FEE_PAYMENT", label: "Fee Payment", color: "border-emerald-500/50 text-emerald-400", bg: "bg-emerald-500/10", icon: Landmark },
-  { key: "ENROLLED", label: "Enrolled", color: "border-teal-500/50 text-teal-400", bg: "bg-teal-500/10", icon: GraduationCap },
-  { key: "DROPPED", label: "Dropped", color: "border-rose-500/50 text-rose-400", bg: "bg-rose-500/10", icon: AlertCircle },
-  { key: "CANCELLED", label: "Cancelled", color: "border-red-500/50 text-red-400", bg: "bg-red-500/10", icon: AlertCircle },
+  { key: "ENQUIRY", label: admissionStageLabel("ENQUIRY"), color: "border-slate-500/50 text-slate-400", bg: "bg-slate-500/10", icon: User },
+  { key: "FEE_PAYMENT", label: admissionStageLabel("FEE_PAYMENT"), color: "border-emerald-500/50 text-emerald-400", bg: "bg-emerald-500/10", icon: Landmark },
+  { key: "VERIFICATION", label: admissionStageLabel("VERIFICATION"), color: "border-amber-500/50 text-amber-400", bg: "bg-amber-500/10", icon: ShieldCheck },
+  { key: "ENROLLED", label: admissionStageLabel("ENROLLED"), color: "border-teal-500/50 text-teal-400", bg: "bg-teal-500/10", icon: GraduationCap },
+  { key: "CANCELLED", label: admissionStageLabel("CANCELLED"), color: "border-red-500/50 text-red-400", bg: "bg-red-500/10", icon: AlertCircle },
+  { key: "DROPPED", label: admissionStageLabel("DROPPED"), color: "border-rose-500/50 text-rose-400", bg: "bg-rose-500/10", icon: AlertCircle },
 ];
 
 function money(v: number | string | null | undefined) {
@@ -1171,7 +1170,7 @@ function AdmissionDetailDialog({
               <div className="flex flex-col items-end gap-2">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold px-3 py-1 bg-primary/20 text-white border border-primary/30 rounded-full">
-                    {admission.stage.replace(/_/g, " ")}
+                    {admissionStageLabel(admission.stage)}
                   </span>
                   {canEnroll && (
                     <Button
@@ -1305,7 +1304,7 @@ export default function AdmissionsPage() {
 
   const admissions = data?.data ?? [];
   const byStage = STAGES.reduce<Record<string, AdmissionListItem[]>>((acc, s) => {
-    acc[s.key] = admissions.filter((a) => a.stage === s.key);
+    acc[s.key] = admissions.filter((a) => canonicalAdmissionStage(a.stage) === s.key);
     return acc;
   }, {});
   const activeAdmission = activeId ? admissions.find((a) => a.id === activeId) : null;
@@ -1325,8 +1324,8 @@ export default function AdmissionsPage() {
     if (!item) return;
     const overId = over.id as string;
     const targetStage =
-      STAGES.find((s) => s.key === overId)?.key ?? admissions.find((a) => a.id === overId)?.stage;
-    if (!targetStage || targetStage === item.stage) return;
+      STAGES.find((s) => s.key === overId)?.key ?? canonicalAdmissionStage(admissions.find((a) => a.id === overId)?.stage ?? "");
+    if (!targetStage || targetStage === canonicalAdmissionStage(item.stage)) return;
     setPendingStageChange({ id: item.id, stage: targetStage });
   };
 
@@ -1402,13 +1401,13 @@ export default function AdmissionsPage() {
         <DialogContent className="max-w-md glass-panel border-white/10 bg-slate-900/95">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-white">
-              Move to {pendingStageChange?.stage.replace(/_/g, " ")}
+              Move to {admissionStageLabel(pendingStageChange?.stage ?? "")}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <p className="text-xs text-muted-foreground font-medium">
               Shift this candidate to{" "}
-              <span className="font-bold text-white">{pendingStageChange?.stage.replace(/_/g, " ")}</span>?
+              <span className="font-bold text-white">{admissionStageLabel(pendingStageChange?.stage ?? "")}</span>?
             </p>
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-muted-foreground">Stage Transition Notes (Optional)</Label>

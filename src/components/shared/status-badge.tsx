@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { admissionStageLabel } from "@/lib/admissions/stage-labels";
 
 // Lead statuses
 const LEAD_STATUS_COLORS: Record<string, string> = {
@@ -36,7 +37,13 @@ const LEAD_STATUS_COLORS: Record<string, string> = {
 // Admission stages
 const ADMISSION_STAGE_COLORS: Record<string, string> = {
   INQUIRY: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  DOCUMENT_COLLECTION: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+  ENQUIRY: "bg-slate-500/20 text-slate-400 border-slate-500/30",
+  DOCUMENT_COLLECTION: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  OFFER_LETTER: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  FEE_PAYMENT: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  VERIFICATION: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  CANCELLED: "bg-red-500/20 text-red-400 border-red-500/30",
+  DROPPED: "bg-rose-500/20 text-rose-400 border-rose-500/30",
   INTERVIEW: "bg-purple-500/20 text-purple-400 border-purple-500/30",
   ENROLLED: "bg-green-500/20 text-green-400 border-green-500/30",
   REJECTED: "bg-red-500/20 text-red-400 border-red-500/30",
@@ -112,7 +119,7 @@ interface StatusBadgeProps {
 export function StatusBadge({ status, domain, className }: StatusBadgeProps) {
   const colorMap = DOMAIN_MAP[domain] ?? {};
   const colors = colorMap[status] ?? "bg-muted text-muted-foreground border-border";
-  const label = status.replace(/_/g, " ");
+  const label = domain === "admission" ? admissionStageLabel(status) : status.replace(/_/g, " ");
 
   return (
     <span

@@ -5,6 +5,7 @@ const SOURCE_LABEL_OVERRIDES: Partial<Record<LeadSource, string>> = {
   WHATSAPP: "WhatsApp",
   WALK_IN: "Walk-in",
   VOICE_AGENT: "Voice Agent",
+  PNS_CALL: "PNS Call",
 };
 
 export function leadSourceLabel(source: string): string {
