@@ -11,11 +11,18 @@ import {
   CPL_NURTURE_TRIGGER_CONDITIONS,
   CPL_NURTURE_WORKFLOW_CODE,
 } from "./cpl-status-nurture";
+import { resolveCourseSlug } from "@/lib/courses/eligibility";
 import { workflowStepSchema } from "@/lib/validations/workflow.schema";
+
+const withSlug = (l: Record<string, unknown>) => ({
+  ...l,
+  courseSlug: resolveCourseSlug(l.courseInterest as string | null),
+});
 
 const lead = {
   status: "NEW",
-  courseInterest: "Commercial Pilot License",
+  courseInterest: "Commercial Pilot License (CPL)",
+  courseSlug: "commercial-pilot-license-cpl",
   phone: "+919876543210",
   whatsappOptOut: false,
   tags: ["web"],
@@ -70,13 +77,21 @@ test("campaign id is attached to every send when provided", () => {
 
 test("entry: CPL lead created at NEW matches", () => {
   assert.equal(evaluateCondition(CPL_NURTURE_TRIGGER_CONDITIONS, lead), true);
-  assert.equal(evaluateCondition(CPL_NURTURE_TRIGGER_CONDITIONS, { ...lead, courseInterest: "DGCA CPL" }), true);
+  assert.equal(evaluateCondition(CPL_NURTURE_TRIGGER_CONDITIONS, withSlug({ ...lead, courseInterest: "DGCA CPL" })), true);
 });
 
 test("entry: rejects non-CPL, opted-out, non-NEW status, no phone, already active", () => {
   const no = (patch: Record<string, unknown>) =>
-    assert.equal(evaluateCondition(CPL_NURTURE_TRIGGER_CONDITIONS, { ...lead, ...patch }), false);
-  no({ courseInterest: "Cabin Crew" });
+    assert.equal(evaluateCondition(CPL_NURTURE_TRIGGER_CONDITIONS, withSlug({ ...lead, ...patch })), false);
+  no({ courseInterest: "Cabin Crew Training (₹54,000)" });
+  no({ courseInterest: "Airbus A320 Simulator FBS (₹10,000)" });
+  no({ courseInterest: "A320 Simulator Training" });
+  no({ courseInterest: "Airline Preparation (₹1,25,000)" });
+  no({ courseInterest: "Comprehensive Airline Preparation Program (₹1,25,000)" });
+  no({ courseInterest: "CPL & Airline Preparation" });
+  no({ courseInterest: "ATPL Ground School (₹1,50,000)" });
+  no({ courseInterest: "Private Pilot License (PPL)" });
+  no({ courseInterest: "DGCA CPL Ground Classes (₹2,70,000)" });
   no({ courseInterest: "Cadet Pilot Program" });
   no({ courseInterest: null });
   no({ whatsappOptOut: true });

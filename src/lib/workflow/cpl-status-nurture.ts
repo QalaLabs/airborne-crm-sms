@@ -34,12 +34,18 @@ export const CPL_NURTURE_EXIT_STATUSES = [
   "JOB_SEEKER",
 ] as const;
 
-/** Matches the Interakt course routing for dgca_cpl (CPL / DGCA CPL / Commercial Pilot …). */
+/**
+ * Course slugs allowed into the nurture. Resolved by the CRM's course classifier
+ * (lead snapshot `courseSlug`), so A320 simulator, airline preparation, cadet,
+ * cabin crew, ATPL, PPL, ground school and combos like "CPL & Airline Preparation"
+ * never enter. Extend this list deliberately if more courses should.
+ */
+export const CPL_NURTURE_COURSE_SLUGS = ["commercial-pilot-license-cpl"] as const;
+
 const CPL_COURSE: ConditionSpec = {
-  any: [
-    { field: "courseInterest", op: "contains", value: "commercial pilot" },
-    { field: "courseInterest", op: "contains", value: "cpl" },
-  ],
+  field: "courseSlug",
+  op: "in",
+  value: [...CPL_NURTURE_COURSE_SLUGS],
 };
 
 /** Trigger event: starts the moment a CPL lead is created at NEW status. */
