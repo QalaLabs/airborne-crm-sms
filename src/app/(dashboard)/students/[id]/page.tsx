@@ -24,8 +24,19 @@ import {
   Send,
   Workflow,
   MessageSquare,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -216,6 +227,29 @@ export default function StudentDetailPage() {
   const [editing, setEditing] = React.useState(false);
   const { data: session } = useSession();
   const canViewCertificates = roleCan(session?.user?.role, "read", "lms_certificates");
+  const canDelete = session?.user?.role === "ADMIN" || session?.user?.role === "SUPER_ADMIN";
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      return apiFetch(`/students/${id}`, { method: "DELETE" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+      queryClient.invalidateQueries({ queryKey: ["student", id] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      queryClient.invalidateQueries({ queryKey: ["admissions"] });
+      setDeleteOpen(false);
+      toast({
+        title: "Student moved to Recycle Bin",
+        description: "Student record and associated lead moved to Recycle Bin.",
+      });
+      router.push("/students");
+    },
+    onError: (err: Error) => {
+      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+    },
+  });
 
   const { data: student, isLoading } = useQuery({
     queryKey: ["student", id],
@@ -412,15 +446,28 @@ export default function StudentDetailPage() {
           </div>
           <StatusBadge status={student.status} domain="student" />
         </div>
-        <Button
-          size="sm"
-          variant={editing ? "outline" : "default"}
-          onClick={() => setEditing((v) => !v)}
-          className="shrink-0"
-        >
-          {editing ? <X className="h-4 w-4 mr-1.5" /> : <Pencil className="h-4 w-4 mr-1.5" />}
-          {editing ? "Cancel" : "Edit profile"}
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            size="sm"
+            variant={editing ? "outline" : "default"}
+            onClick={() => setEditing((v) => !v)}
+            className="shrink-0"
+          >
+            {editing ? <X className="h-4 w-4 mr-1.5" /> : <Pencil className="h-4 w-4 mr-1.5" />}
+            {editing ? "Cancel" : "Edit profile"}
+          </Button>
+          {canDelete && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setDeleteOpen(true)}
+              className="border-rose-500/30 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300"
+            >
+              <Trash2 className="h-4 w-4 mr-1.5" />
+              Move to Bin
+            </Button>
+          )}
+        </div>
       </div>
 
       {editing && form ? (
@@ -939,6 +986,36 @@ export default function StudentDetailPage() {
           </div>
         </>
       )}
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent className="glass-panel border-white/10 bg-slate-900/95 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base font-bold text-white flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-rose-400" />
+              Move Student to Recycle Bin?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground">
+              Are you sure you want to move student{" "}
+              <span className="font-semibold text-white">
+                {student.name} ({student.studentId})
+              </span>{" "}
+              to the Recycle Bin? The linked candidate lead will also be archived. You can restore this record within 30 days from the Recycle Bin.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-white/10 text-xs font-bold hover:bg-white/5">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteMutation.mutate()}
+              disabled={deleteMutation.isPending}
+              className="bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/20"
+            >
+              {deleteMutation.isPending ? "Moving..." : "Move to Recycle Bin"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

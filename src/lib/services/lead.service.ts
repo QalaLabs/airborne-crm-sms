@@ -684,6 +684,12 @@ export class LeadService {
     await this.getById(ctx, id);
     await LeadRepository.softDelete(ctx.orgId, id);
 
+    // Also soft-delete any linked student so they move into the Recycle Bin together
+    await prisma.student.updateMany({
+      where: { leadId: id, orgId: ctx.orgId, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
+
     const { AuditService } = await import("@/lib/services/audit.service");
     await AuditService.write({
       orgId: ctx.orgId,

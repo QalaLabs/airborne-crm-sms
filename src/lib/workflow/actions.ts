@@ -97,11 +97,15 @@ export async function executeAction(
       );
       // Routed through the existing notification pipeline. Until the WhatsApp
       // provider abstraction lands this honestly records NOT_CONFIGURED —
-      // delivery is never faked.
+      const leadStatus = resolvePath(snapshotCtx, "status");
+      if (leadStatus === "JOB_SEEKER") {
+        return { ok: true, skipped: true, detail: "Contact is a job seeker" };
+      }
       const leadIdRaw =
         ctx.entityType === "lead" ? ctx.entityId : resolvePath(snapshotCtx, "leadId");
       const leadId = typeof leadIdRaw === "string" ? leadIdRaw : undefined;
       const bodyValues = step.bodyValues?.map((v) => interpolate(String(v), snapshotCtx));
+      const headerValues = step.headerValues?.map((v) => interpolate(String(v), snapshotCtx));
       // Never send a template with an unresolved {{placeholder}} to a real person.
       if (bodyValues?.some((v) => /\{\{[^}]*\}\}/.test(v))) {
         return { ok: true, skipped: true, detail: "Unresolved template variable; send skipped" };
@@ -116,6 +120,7 @@ export async function executeAction(
         entityId: ctx.entityId,
         templateName: step.templateName,
         bodyValues,
+        headerValues,
         providerCampaignId: step.providerCampaignId,
         idempotencyKey: ctx.idempotencyKey,
         metadata: {
@@ -124,6 +129,14 @@ export async function executeAction(
           workflowStepKey: step.name ?? "SEND_WHATSAPP",
         },
       });
+      if (leadId && (status === "SENT" || status === "PENDING")) {
+        await writeLeadActivity(
+          ctx,
+          leadId,
+          `WhatsApp: ${step.name ?? step.templateName ?? "Campaign Message"}`,
+          `Campaign template: ${step.templateName ?? "default"} (Interakt API)`,
+        );
+      }
       return { ok: true, detail: `whatsapp:${status ?? "no-template"}` };
     }
 

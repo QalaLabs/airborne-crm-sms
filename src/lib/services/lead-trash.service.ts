@@ -16,6 +16,8 @@ const TRASH_SELECT = {
   createdAt: true,
   deletedAt: true,
   counselor: { select: { id: true, name: true } },
+  student: { select: { id: true, studentCode: true } },
+  admissions: { select: { id: true, applicationNo: true, stage: true } },
   _count: { select: { admissions: true } },
 } satisfies Prisma.LeadSelect;
 
@@ -61,8 +63,10 @@ export class LeadTrashService {
       prisma.lead.count({ where }),
     ]);
 
-    const data = rows.map(({ _count, ...lead }) => ({
+    const data = rows.map(({ _count, student, admissions, ...lead }) => ({
       ...lead,
+      studentCode: student?.studentCode ?? null,
+      admissions: admissions.map((a) => ({ id: a.id, applicationNo: a.applicationNo, stage: a.stage })),
       hasAdmission: _count.admissions > 0,
       purgeAt: trashPurgeAt(lead.deletedAt!, retentionDays).toISOString(),
     }));
@@ -72,6 +76,7 @@ export class LeadTrashService {
   static async restore(ctx: RequestContext, id: string) {
     const lead = await this.findTrashed(ctx.orgId, id);
     await prisma.lead.update({ where: { id: lead.id }, data: { deletedAt: null } });
+    await prisma.student.updateMany({ where: { leadId: lead.id, orgId: ctx.orgId }, data: { deletedAt: null } });
     await AuditService.write({
       orgId: ctx.orgId,
       userId: ctx.user.id,
@@ -91,6 +96,7 @@ export class LeadTrashService {
     if (admissions > 0) {
       throw new ConflictError("This lead has an admission record and cannot be permanently deleted. Restore it instead.");
     }
+    await prisma.student.deleteMany({ where: { leadId: lead.id, orgId: ctx.orgId } });
     await prisma.lead.delete({ where: { id: lead.id } });
     await AuditService.write({
       orgId: ctx.orgId,

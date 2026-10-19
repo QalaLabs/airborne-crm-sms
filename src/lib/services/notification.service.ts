@@ -20,6 +20,7 @@ interface NotificationDispatchParams {
   templateName?: string;
   /** Ordered Interakt template body values; overrides the rendered body fallback. */
   bodyValues?: string[];
+  headerValues?: string[];
   /** Interakt API campaign id (analytics grouping). */
   providerCampaignId?: string;
   idempotencyKey?: string;
@@ -119,6 +120,7 @@ export class NotificationService {
           body,
           templateName: providerTemplateName,
           bodyValues: params.bodyValues,
+          headerValues: params.headerValues,
           providerCampaignId: params.providerCampaignId,
           metadata: {
             ...(params.metadata ?? {}),
@@ -175,6 +177,7 @@ export class NotificationService {
         body,
         templateName: providerTemplateName,
         bodyValues: params.bodyValues,
+        headerValues: params.headerValues,
         providerCampaignId: params.providerCampaignId,
         metadata: {
           ...(params.metadata ?? {}),
@@ -241,6 +244,7 @@ async function dispatchToProvider(input: {
   body: string;
   templateName?: string;
   bodyValues?: string[];
+  headerValues?: string[];
   providerCampaignId?: string;
   metadata?: Record<string, string>;
 }): Promise<{ status: DeliveryStatus; errorMsg?: string; externalId?: string }> {
@@ -257,6 +261,7 @@ async function dispatchToProvider(input: {
     body: input.body,
     templateName: input.templateName,
     bodyValues: input.bodyValues,
+    headerValues: input.headerValues,
     providerCampaignId: input.providerCampaignId,
     metadata: input.metadata,
   });

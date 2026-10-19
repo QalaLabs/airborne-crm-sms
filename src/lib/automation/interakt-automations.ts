@@ -33,6 +33,11 @@ export const DEFAULT_INTERAKT_AUTOMATIONS: InteraktAutomationDefault[] = [
       { name: "cpl_nurture_d1_welcome_brochure", configuredIn: "interakt" },
       { name: "cpl_nurture_d3_founder_video", configuredIn: "interakt" },
       { name: "cpl_nurture_d5_success_story", configuredIn: "interakt" },
+      { name: "cpl_nurture_d7_fees_scholarship", configuredIn: "interakt" },
+      { name: "cpl_nurture_d10_batch_urgency", configuredIn: "interakt" },
+      { name: "cpl_nurture_d14_personal_followup", configuredIn: "interakt" },
+      { name: "cpl_nurture_d18_final_reminder", configuredIn: "interakt" },
+      { name: "cpl_nurture_d21_lastchance_altcourse", configuredIn: "interakt" },
     ],
     notes:
       "Interakt Advanced branch: course = dgca_cpl. Welcome / wait / follow-up / success story run in Interakt. Paste the Interakt workflow name below. Airborne does not send these templates or map body variables.",

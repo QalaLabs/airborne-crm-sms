@@ -170,8 +170,7 @@ export async function dispatchEvent(event: AppEvent): Promise<void> {
 
 function shouldSkipAirborneLeadNurture(eventName: string): boolean {
   if (!isLeadCreatedEventName(eventName)) return false;
-  const provider = getProvider("WHATSAPP");
-  return provider instanceof InteraktProvider && provider.isConfigured();
+  return process.env.SKIP_AIRBORNE_LEAD_NURTURE === "true";
 }
 
 /**

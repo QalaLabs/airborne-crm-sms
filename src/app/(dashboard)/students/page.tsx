@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { type ColumnDef, type PaginationState, type SortingState } from "@tanstack/react-table";
-import { Search, Eye, MoreHorizontal, AlertCircle, CheckCircle2, XCircle, Upload, UserPlus, GraduationCap, Phone } from "lucide-react";
+import { Search, Eye, MoreHorizontal, AlertCircle, CheckCircle2, XCircle, Upload, UserPlus, GraduationCap, Phone, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { roleCan } from "@/lib/utils/permissions";
@@ -14,7 +14,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { formatDate, getInitials, cn } from "@/lib/utils";
@@ -41,6 +51,7 @@ interface Student {
 const STUDENT_STATUSES = ["all", "DRAFT", "ACTIVE", "GRADUATED", "DROPPED", "SUSPENDED", "ON_HOLD"];
 
 export default function StudentsPage() {
+  const queryClient = useQueryClient();
   const [pagination, setPagination] = React.useState<PaginationState>({ pageIndex: 0, pageSize: 20 });
   const [sorting, setSorting] = React.useState<SortingState>([{ id: "createdAt", desc: true }]);
   const [search, setSearch] = React.useState("");
@@ -54,10 +65,32 @@ export default function StudentsPage() {
   const [admitCourse, setAdmitCourse] = React.useState("");
   const [admitFee, setAdmitFee] = React.useState("");
   const [submittingAdmit, setSubmittingAdmit] = React.useState(false);
+  const [deleteTarget, setDeleteTarget] = React.useState<Student | null>(null);
 
   const { data: session } = useSession();
   const canImport = roleCan(session?.user?.role, "write", "students");
   const canAdmit = roleCan(session?.user?.role, "write", "admissions") || roleCan(session?.user?.role, "write", "students");
+  const canDelete = session?.user?.role === "ADMIN" || session?.user?.role === "SUPER_ADMIN";
+
+  const deleteMutation = useMutation({
+    mutationFn: async (studentId: string) => {
+      return apiFetch(`/students/${studentId}`, { method: "DELETE" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      queryClient.invalidateQueries({ queryKey: ["admissions"] });
+      setDeleteTarget(null);
+      refetch();
+      toast({
+        title: "Student moved to Recycle Bin",
+        description: "Student record and associated lead moved to Recycle Bin.",
+      });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+    },
+  });
 
   const { data: leadResults, isLoading: leadsSearching } = useQuery({
     queryKey: ["leads-search-admit", leadSearchTerm],
@@ -231,13 +264,25 @@ export default function StudentsPage() {
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="glass-panel border-white/10 w-44">
+          <DropdownMenuContent align="end" className="glass-panel border-white/10 w-48">
             <DropdownMenuItem asChild className="cursor-pointer hover:bg-white/5">
               <Link href={`/students/${row.original.id}`}>
                 <Eye className="mr-2 h-4 w-4 text-primary" />
                 View Details
               </Link>
             </DropdownMenuItem>
+            {canDelete && (
+              <>
+                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuItem
+                  onClick={() => setDeleteTarget(row.original)}
+                  className="cursor-pointer text-rose-400 hover:bg-rose-500/10 focus:text-rose-400"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Move to Recycle Bin
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       ),
@@ -251,6 +296,11 @@ export default function StudentsPage() {
         description="Enrolled student records and status tracking."
         action={
           <div className="flex items-center gap-2">
+            <Button asChild variant="outline" className="border-white/10 text-xs font-semibold hover:bg-white/5">
+              <Link href="/leads/trash">
+                <Trash2 className="h-4 w-4 mr-1.5" /> Recycle Bin
+              </Link>
+            </Button>
             {canAdmit && (
               <Button
                 onClick={() => setAdmitOpen(true)}
@@ -449,6 +499,35 @@ export default function StudentsPage() {
         </div>
       )}
 
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent className="glass-panel border-white/10 bg-slate-900/95 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base font-bold text-white flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-rose-400" />
+              Move Student to Recycle Bin?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground">
+              Are you sure you want to move student{" "}
+              <span className="font-semibold text-white">
+                {deleteTarget ? `${deleteTarget.firstName} ${deleteTarget.lastName} (${deleteTarget.studentCode})` : ""}
+              </span>{" "}
+              to the Recycle Bin? The linked candidate lead will also be archived. You can restore this record within 30 days from the Recycle Bin.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-white/10 text-xs font-bold hover:bg-white/5">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+              disabled={deleteMutation.isPending}
+              className="bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/20"
+            >
+              {deleteMutation.isPending ? "Moving..." : "Move to Recycle Bin"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -10,7 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { 
   Globe, FileText, ImageIcon, Megaphone,
   Search, Plus, Eye, Edit2, Loader2, AlertCircle,
-  MoreHorizontal, Archive, CalendarClock, Clock, Menu
+  MoreHorizontal, Archive, CalendarClock, Clock, Menu,
+  Sparkles, ExternalLink
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "@/components/ui/use-toast";
@@ -52,6 +53,7 @@ export default function CMSPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const [activeTab, setActiveTab] = React.useState("pages");
+  const [payloadView, setPayloadView] = React.useState<"admin" | "preview">("admin");
   const [search, setSearch] = React.useState("");
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
   const [editItem, setEditItem] = React.useState<Partial<PageModel> | null>(null);
@@ -171,6 +173,7 @@ export default function CMSPage() {
       <div className="flex border-b border-white/10 gap-2 overflow-x-auto pb-1">
         {[
           { id: "pages", label: "Core Web Pages", icon: Globe },
+          { id: "payload", label: "Payload CMS Studio", icon: Sparkles },
           { id: "nav", label: "Navigation Menus", icon: Menu },
           { id: "gallery", label: "Public Media Gallery", icon: ImageIcon },
           { id: "news", label: "News & Announcements", icon: Megaphone },
@@ -296,7 +299,71 @@ export default function CMSPage() {
           </motion.div>
         )}
 
-        {/* Navigation Menus editor */}
+        {/* Payload CMS Studio tab */}
+        {activeTab === "payload" && (
+          <motion.div key="payload" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="space-y-6">
+            <div className="glass-card rounded-2xl p-6 border border-white/10 space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-white">Payload CMS Engine</h3>
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-400">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        Live on Port 3101
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Connected to local studio at <code className="text-purple-300 font-mono">http://localhost:3101</code> &bull; Login: <code className="text-white font-mono">preview@local.test</code> / <code className="text-white font-mono">PreviewPass123!</code>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-stretch sm:self-auto">
+                  <div className="flex rounded-lg bg-white/5 p-1 border border-white/10 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setPayloadView("admin")}
+                      className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+                        payloadView === "admin" ? "bg-primary text-white shadow-md shadow-primary/20" : "text-muted-foreground hover:text-white"
+                      }`}
+                    >
+                      Admin Studio
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPayloadView("preview")}
+                      className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+                        payloadView === "preview" ? "bg-primary text-white shadow-md shadow-primary/20" : "text-muted-foreground hover:text-white"
+                      }`}
+                    >
+                      Site Preview
+                    </button>
+                  </div>
+
+                  <Button asChild size="sm" variant="outline" className="border-white/10 hover:bg-white/5 text-xs font-bold gap-1.5">
+                    <a href={payloadView === "admin" ? "http://localhost:3101/admin" : "http://localhost:3101"} target="_blank" rel="noopener noreferrer">
+                      <span>Open in New Tab</span>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Embedded Live Studio / Preview Frame */}
+              <div className="relative w-full rounded-xl overflow-hidden border border-white/10 bg-slate-950/80 shadow-2xl" style={{ height: "740px" }}>
+                <iframe
+                  src={payloadView === "admin" ? "http://localhost:3101/admin" : "http://localhost:3101"}
+                  title="Payload CMS Studio"
+                  className="w-full h-full border-0"
+                />
+              </div>
+            </div>
+          </motion.div>
+        )}
         {activeTab === "nav" && (
           <motion.div key="nav" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
             <NavMenuEditor />

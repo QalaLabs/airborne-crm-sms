@@ -31,6 +31,8 @@ interface TrashedLead {
   deletedAt: string;
   purgeAt: string;
   hasAdmission: boolean;
+  studentCode?: string | null;
+  admissions?: { id: string; applicationNo: string; stage: string }[];
   counselor: { id: string; name: string } | null;
 }
 
@@ -75,13 +77,15 @@ export default function LeadRecycleBinPage() {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["leads-trash"] });
     queryClient.invalidateQueries({ queryKey: ["leads"] });
+    queryClient.invalidateQueries({ queryKey: ["admissions"] });
+    queryClient.invalidateQueries({ queryKey: ["students"] });
   };
 
   const restoreMutation = useMutation({
     mutationFn: (id: string) => apiFetch(`/leads/${id}/restore`, { method: "POST" }),
     onSuccess: () => {
       invalidate();
-      toast({ title: "Lead restored", description: "The lead is back in All Leads." });
+      toast({ title: "Lead restored", description: "The lead and linked student/admission are restored." });
     },
     onError: (err) => toast({ title: "Restore failed", description: err.message, variant: "destructive" }),
   });
@@ -107,7 +111,19 @@ export default function LeadRecycleBinPage() {
       header: "Lead",
       cell: ({ row }) => (
         <div>
-          <p className="font-semibold text-white">{row.original.name}</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-semibold text-white">{row.original.name}</p>
+            {row.original.studentCode && (
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-primary/20 text-primary border border-primary/30">
+                {row.original.studentCode}
+              </span>
+            )}
+            {row.original.admissions && row.original.admissions.length > 0 && (
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-teal-500/20 text-teal-300 border border-teal-500/30">
+                {row.original.admissions[0]?.applicationNo}
+              </span>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground">{row.original.email ?? "-"}</p>
         </div>
       ),

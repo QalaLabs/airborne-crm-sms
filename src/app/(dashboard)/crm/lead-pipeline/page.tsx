@@ -34,7 +34,9 @@ import {
   AlertCircle,
   GraduationCap,
   Sparkles,
+  Trash2,
 } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,6 +57,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import { apiFetch } from "@/lib/api";
 import { formatDate, formatDateTime, cn } from "@/lib/utils";
 import { isLostStatus } from "@/lib/leads/lead-status";
@@ -199,10 +211,14 @@ function LeadPipelineCard({
   lead,
   onClick,
   isDragging,
+  canDelete,
+  onDelete,
 }: {
   lead: LeadRecord;
   onClick: () => void;
   isDragging?: boolean;
+  canDelete?: boolean;
+  onDelete?: (lead: LeadRecord) => void;
 }) {
   const meetingInfo = getMeetingSummary(lead);
   const agreedAmount = formatINR(lead.manualAmount || lead.deals?.[0]?.value);
@@ -231,11 +247,26 @@ function LeadPipelineCard({
             {lead.phone}
           </p>
         </div>
-        {lead.score != null && lead.score > 0 && (
-          <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 shrink-0">
-            {lead.score}
-          </span>
-        )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {lead.score != null && lead.score > 0 && (
+            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 shrink-0">
+              {lead.score}
+            </span>
+          )}
+          {canDelete && (
+            <button
+              type="button"
+              title="Move to Recycle Bin"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete?.(lead);
+              }}
+              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-rose-500/20 text-muted-foreground hover:text-rose-400"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {lead.courseInterest && (
@@ -286,9 +317,13 @@ function LeadPipelineCard({
 function SortablePipelineCard({
   lead,
   onClick,
+  canDelete,
+  onDelete,
 }: {
   lead: LeadRecord;
   onClick: () => void;
+  canDelete?: boolean;
+  onDelete?: (lead: LeadRecord) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
@@ -301,7 +336,7 @@ function SortablePipelineCard({
       {...attributes}
       {...listeners}
     >
-      <LeadPipelineCard lead={lead} onClick={onClick} isDragging={isDragging} />
+      <LeadPipelineCard lead={lead} onClick={onClick} isDragging={isDragging} canDelete={canDelete} onDelete={onDelete} />
     </div>
   );
 }
@@ -310,10 +345,14 @@ function PipelineColumn({
   column,
   leads,
   onCardClick,
+  canDelete,
+  onDelete,
 }: {
   column: ColumnConfig;
   leads: LeadRecord[];
   onCardClick: (lead: LeadRecord) => void;
+  canDelete?: boolean;
+  onDelete?: (lead: LeadRecord) => void;
 }) {
   const { setNodeRef } = useSortable({ id: column.id });
 
@@ -340,7 +379,7 @@ function PipelineColumn({
       >
         <SortableContext items={leads.map((l) => l.id)} strategy={verticalListSortingStrategy}>
           {leads.map((lead) => (
-            <SortablePipelineCard key={lead.id} lead={lead} onClick={() => onCardClick(lead)} />
+            <SortablePipelineCard key={lead.id} lead={lead} onClick={() => onCardClick(lead)} canDelete={canDelete} onDelete={onDelete} />
           ))}
         </SortableContext>
 
@@ -357,10 +396,37 @@ function PipelineColumn({
 
 export default function LeadPipelinePage() {
   const router = useRouter();
+  const { data: session } = useSession();
+  const canDelete = session?.user?.role === "ADMIN" || session?.user?.role === "SUPER_ADMIN";
+  const [deleteTarget, setDeleteTarget] = React.useState<LeadRecord | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
+
   const [leads, setLeads] = React.useState<LeadRecord[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [search, setSearch] = React.useState("");
   const [activeId, setActiveId] = React.useState<string | null>(null);
+
+  const handleDeleteLead = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await apiFetch(`/leads/${deleteTarget.id}`, { method: "DELETE" });
+      setLeads((prev) => prev.filter((l) => l.id !== deleteTarget.id));
+      toast({
+        title: "Lead moved to Recycle Bin",
+        description: `${deleteTarget.name} has been moved to the Recycle Bin.`,
+      });
+      setDeleteTarget(null);
+    } catch (err) {
+      toast({
+        title: "Delete failed",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   // Meeting Gate Dialog State
   const [meetingGateOpen, setMeetingGateOpen] = React.useState(false);
@@ -645,6 +711,19 @@ export default function LeadPipelinePage() {
           >
             All Leads Table
           </Button>
+          {canDelete && (
+            <Button
+              asChild
+              size="sm"
+              variant="outline"
+              className="border-white/10 hover:bg-white/5 text-xs font-bold"
+            >
+              <Link href="/leads/trash">
+                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                Recycle Bin
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -672,6 +751,8 @@ export default function LeadPipelinePage() {
                   column={column}
                   leads={byColumn[column.id] ?? []}
                   onCardClick={(lead) => router.push(`/leads/${lead.id}`)}
+                  canDelete={canDelete}
+                  onDelete={setDeleteTarget}
                 />
               ))}
             </div>
@@ -866,6 +947,32 @@ export default function LeadPipelinePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && !deleting && setDeleteTarget(null)}>
+        <AlertDialogContent className="glass-panel border-white/10 bg-slate-900/95 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">Move {deleteTarget?.name} to Recycle Bin?</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              This lead will be moved to the Recycle Bin. You can restore them from there within 30 days, after which they are permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting} className="border-white/10 bg-secondary/30 text-white hover:bg-secondary">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDeleteLead();
+              }}
+              className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
+            >
+              {deleting ? "Moving..." : "Move to Recycle Bin"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

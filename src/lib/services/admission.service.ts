@@ -891,4 +891,34 @@ export class AdmissionService {
     await this.getById(ctx, id);
     return AdmissionRepository.getStageLogs(ctx.orgId, id);
   }
+
+  static async delete(ctx: RequestContext, id: string) {
+    const admission = await prisma.admission.findFirst({
+      where: { id, orgId: ctx.orgId },
+      select: { id: true, leadId: true, studentId: true, applicationNo: true },
+    });
+    if (!admission) throw new NotFoundError("Admission", id);
+
+    const { LeadService } = await import("@/lib/services/lead.service");
+    await LeadService.delete(ctx, admission.leadId);
+
+    if (admission.studentId) {
+      await prisma.student.updateMany({
+        where: { id: admission.studentId, orgId: ctx.orgId, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+    }
+
+    await AuditService.write({
+      orgId: ctx.orgId,
+      userId: ctx.user.id,
+      requestId: ctx.requestId,
+      action: "admission.deleted",
+      entityType: "admission",
+      entityId: id,
+      oldValue: { applicationNo: admission.applicationNo, leadId: admission.leadId },
+    });
+
+    return { ok: true };
+  }
 }

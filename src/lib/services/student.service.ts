@@ -1,4 +1,5 @@
 import { StudentRepository } from "@/lib/repositories/student.repository";
+import { LeadRepository } from "@/lib/repositories/lead.repository";
 import { AuditService } from "@/lib/services/audit.service";
 import { ActivityFeedService } from "@/lib/services/activity.service";
 import { NotFoundError, ConflictError, ValidationError } from "@/lib/utils/errors";
@@ -148,8 +149,30 @@ export class StudentService {
   }
 
   static async delete(ctx: RequestContext, id: string) {
-    await this.getById(ctx, id);
+    const student = await this.getById(ctx, id);
     await StudentRepository.softDelete(ctx.orgId, id);
+
+    // If linked to a lead, soft-delete the lead too so it appears in the Recycle Bin
+    if (student.leadId) {
+      await LeadRepository.softDelete(ctx.orgId, student.leadId);
+    } else {
+      // If student was imported directly without a lead, synthesize a soft-deleted lead
+      // so it shows up in the Recycle Bin and can be restored
+      const lead = await prisma.lead.create({
+        data: {
+          orgId: ctx.orgId,
+          name: `${student.firstName} ${student.lastName}`.trim(),
+          email: student.email,
+          phone: student.phone,
+          status: "WON",
+          deletedAt: new Date(),
+        },
+      });
+      await prisma.student.update({
+        where: { id: student.id },
+        data: { leadId: lead.id },
+      });
+    }
 
     await AuditService.write({
       orgId: ctx.orgId,

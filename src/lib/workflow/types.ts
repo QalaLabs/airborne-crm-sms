@@ -43,6 +43,7 @@ export type WorkflowStep =
       variables?: Record<string, string>;
       /** Ordered Interakt {{1}} {{2}} … template values; each is interpolated from the entity snapshot. */
       bodyValues?: string[];
+      headerValues?: string[];
       /** Interakt API campaign id for this send; falls back to INTERAKT_API_CAMPAIGN_ID. */
       providerCampaignId?: string;
     })

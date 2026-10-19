@@ -110,6 +110,7 @@ export class AdmissionRepository {
   static async findMany(orgId: string, filters: AdmissionFilters) {
     const where: Prisma.AdmissionWhereInput = {
       orgId,
+      lead: { deletedAt: null },
       ...(filters.stage && { stage: filters.stage }),
       ...(filters.campusId && { campusId: filters.campusId }),
       ...(filters.counselorId && { counselorId: filters.counselorId }),
@@ -149,7 +150,7 @@ export class AdmissionRepository {
 
   static async findById(orgId: string, id: string) {
     return prisma.admission.findFirst({
-      where: { id, orgId },
+      where: { id, orgId, lead: { deletedAt: null } },
       select: ADMISSION_DETAIL_SELECT,
     });
   }
