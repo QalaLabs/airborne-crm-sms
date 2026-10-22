@@ -349,9 +349,11 @@ async function main() {
       admissionId?: string | null;
     },
   ) =>
-    prisma.deal.upsert({
-      where: { orgId_leadId: { orgId: org.id, leadId } },
-      update: {
+    prisma.deal.findFirst({
+      where: { orgId: org.id, leadId },
+      select: { id: true },
+    }).then(existing => {
+      const payload = {
         stage: data.stage as never,
         title: data.title,
         value: data.value,
@@ -361,24 +363,24 @@ async function main() {
         convertedAt: data.convertedAt ?? null,
         admissionId: data.admissionId ?? null,
         isActive: data.wonAt || data.lostAt ? false : true,
-      },
-      create: {
-        orgId: org.id,
-        leadId,
-        title: data.title,
-        stage: data.stage as never,
-        currency: "INR",
-        value: data.value,
-        assignedTo: dealCounselor.id,
-        createdBy: dealAcademy.id,
-        wonAt: data.wonAt ?? null,
-        lostAt: data.lostAt ?? null,
-        lostReason: data.lostReason ?? null,
-        convertedAt: data.convertedAt ?? null,
-        admissionId: data.admissionId ?? null,
-        isActive: data.wonAt || data.lostAt ? false : true,
-        metadata: {},
-      },
+      };
+      if (existing) {
+        return prisma.deal.update({
+          where: { id: existing.id },
+          data: payload,
+        });
+      }
+      return prisma.deal.create({
+        data: {
+          orgId: org.id,
+          leadId,
+          currency: "INR",
+          assignedTo: dealCounselor.id,
+          createdBy: dealAcademy.id,
+          metadata: {},
+          ...payload,
+        },
+      });
     });
 
   // Lead A — open deal mid-funnel.

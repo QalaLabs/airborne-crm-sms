@@ -61,7 +61,17 @@ export default function CoursesPage() {
 
   React.useEffect(() => {
     if (selectedCourse) {
-      setCurriculumDraft(selectedCourse.curriculum ?? []);
+      const raw = Array.isArray(selectedCourse.curriculum)
+        ? selectedCourse.curriculum
+        : Array.isArray((selectedCourse as any).modules)
+        ? (selectedCourse as any).modules
+        : [];
+      setCurriculumDraft(
+        raw.map((m: any) => ({
+          module: typeof m?.module === "string" ? m.module : (typeof m?.name === "string" ? m.name : ""),
+          topics: Array.isArray(m?.topics) ? m.topics : [],
+        }))
+      );
     }
   }, [selectedCourse]);
 
@@ -171,8 +181,11 @@ export default function CoursesPage() {
     const eligibility = formData.get("eligibility") as string;
     const feeStr = formData.get("fee") as string;
     const fee = feeStr ? parseFloat(feeStr) : undefined;
-    const curriculum = curriculumDraft
-      .map((m) => ({ module: m.module.trim(), topics: m.topics.map((t) => t.trim()).filter(Boolean) }))
+    const curriculum = (curriculumDraft ?? [])
+      .map((m) => ({
+        module: (m?.module ?? "").trim(),
+        topics: (m?.topics ?? []).map((t) => (t ?? "").trim()).filter(Boolean),
+      }))
       .filter((m) => m.module.length > 0);
 
     updateMutation.mutate({
@@ -519,18 +532,18 @@ export default function CoursesPage() {
                             </div>
                           </div>
                           <div className="space-y-1.5 pl-6">
-                            {mod.topics.map((topic, ti) => (
+                            {(mod?.topics ?? []).map((topic, ti) => (
                               <div key={ti} className="flex items-center gap-2">
                                 <Input
                                   value={topic}
                                   onChange={(e) => {
-                                    setCurriculumDraft((prev) => prev.map((m, mi) => (mi === i ? { ...m, topics: m.topics.map((t, idx) => (idx === ti ? e.target.value : t)) } : m)));
+                                    setCurriculumDraft((prev) => prev.map((m, mi) => (mi === i ? { ...m, topics: (m?.topics ?? []).map((t, idx) => (idx === ti ? e.target.value : t)) } : m)));
                                   }}
                                   placeholder="Topic title"
                                   className="h-7 bg-transparent border-white/10 text-[11px] font-medium text-white/90"
                                 />
                                 <Button type="button" size="icon" variant="ghost" className="h-6 w-6 text-red-400/70 hover:text-red-300 hover:bg-red-500/10" onClick={() => {
-                                  setCurriculumDraft((prev) => prev.map((m, mi) => (mi === i ? { ...m, topics: m.topics.filter((_, idx) => idx !== ti) } : m)));
+                                  setCurriculumDraft((prev) => prev.map((m, mi) => (mi === i ? { ...m, topics: (m?.topics ?? []).filter((_, idx) => idx !== ti) } : m)));
                                 }}>
                                   <X className="h-3 w-3" />
                                 </Button>
@@ -542,7 +555,7 @@ export default function CoursesPage() {
                               variant="ghost"
                               className="h-6 text-[11px] text-muted-foreground hover:text-white"
                               onClick={() => {
-                                setCurriculumDraft((prev) => prev.map((m, mi) => (mi === i ? { ...m, topics: [...m.topics, ""] } : m)));
+                                setCurriculumDraft((prev) => prev.map((m, mi) => (mi === i ? { ...m, topics: [...(m?.topics ?? []), ""] } : m)));
                               }}
                             >
                               <Plus className="mr-1 h-3 w-3" /> Add Topic

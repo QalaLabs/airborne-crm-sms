@@ -95,7 +95,7 @@ export function modeLabel(courseMode: string | null | undefined): string | null 
 }
 
 function normalizeTitle(title: string): string[] {
-  const stop = new Set(["the", "and", "of", "a", "an", "in", "your", "dgca", "complied", "course", "program"]);
+  const stop = new Set(["the", "and", "of", "a", "an", "in", "your", "dgca", "complied", "compliant", "course", "program"]);
   return title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")

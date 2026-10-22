@@ -256,10 +256,10 @@ export class StudentRepository {
     });
   }
 
-  static async softDelete(orgId: string, id: string) {
+  static async softDelete(orgId: string, id: string, deletedBy?: string) {
     return prisma.student.update({
       where: { id, orgId },
-      data: { deletedAt: new Date() },
+      data: { deletedAt: new Date(), ...(deletedBy ? { deletedBy } : {}) },
       select: { id: true },
     });
   }

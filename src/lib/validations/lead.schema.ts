@@ -215,3 +215,10 @@ export type CreateActivityInput = z.infer<typeof createActivitySchema>;
 export type CompleteActivityInput = z.infer<typeof completeActivitySchema>;
 export type ConvertLeadInput = z.infer<typeof convertLeadSchema>;
 export type ScheduleMeetingInput = z.infer<typeof scheduleMeetingSchema>;
+
+export const recordDispositionSchema = z.object({
+  disposition: z.string().min(1).max(50),
+  remarks: z.string().max(1000).optional(),
+  nextFollowUp: z.union([z.string(), z.date()]).nullable().optional(),
+});
+export type RecordDispositionInput = z.infer<typeof recordDispositionSchema>;

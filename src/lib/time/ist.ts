@@ -52,3 +52,10 @@ export function fromISTInput(value: string): string {
   const utcMs = Date.UTC(y, mo - 1, da, h, mi) - IST_OFFSET_MIN * 60_000;
   return new Date(utcMs).toISOString();
 }
+
+/** UTC instant of 00:00 IST on the 1st day of the IST calendar month containing `d`. */
+export function startOfISTMonth(d: Date = new Date()): Date {
+  const shifted = new Date(d.getTime() + IST_OFFSET_MIN * 60_000);
+  const utcMidnight = Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), 1);
+  return new Date(utcMidnight - IST_OFFSET_MIN * 60_000);
+}

@@ -46,6 +46,20 @@ const VERSION_SELECT = {
   creator: { select: { id: true, name: true } },
 } satisfies Prisma.CourseVersionSelect;
 
+export const COURSE_SLUG_ALIASES: Record<string, string[]> = {
+  "commercial-pilot-license-cpl": ["cpl-ground-classes", "commercial-pilot-license-cpl", "cpl"],
+  "cpl-ground-classes": ["commercial-pilot-license-cpl", "cpl-ground-classes", "cpl"],
+  "cabin-crew-training": ["cabin-crew", "cabin-crew-training"],
+  "cabin-crew": ["cabin-crew-training", "cabin-crew"],
+  "flying-training-india-abroad": ["flying-training", "flying-training-india-abroad"],
+  "flying-training": ["flying-training-india-abroad", "flying-training"],
+  "ground-school": ["cpl-ground-classes", "ground-school"],
+  "cadet-preparation": ["cadet-preparation", "cadet-pilot-program"],
+  "airline-preparation": ["airline-preparation", "airline-prep"],
+  "cas-compass-adapt": ["cas-compass-adapt", "compass-adapt"],
+  "private-pilot-license": ["private-pilot-license", "ppl"],
+};
+
 export class CourseRepository {
   static async findMany(orgId: string, filters: CourseFilters) {
     const where: Prisma.CourseWhereInput = {
@@ -80,7 +94,8 @@ export class CourseRepository {
   }
 
   static async findBySlug(orgId: string, slug: string) {
-    return prisma.course.findFirst({ where: { slug, orgId }, select: COURSE_SELECT });
+    const candidates = COURSE_SLUG_ALIASES[slug] ?? [slug];
+    return prisma.course.findFirst({ where: { orgId, slug: { in: candidates } }, select: COURSE_SELECT });
   }
 
   static async create(orgId: string, createdBy: string, data: CreateCourseInput, slug: string) {

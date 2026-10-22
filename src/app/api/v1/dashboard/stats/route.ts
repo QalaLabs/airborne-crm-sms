@@ -3,7 +3,7 @@ import { guard } from "@/lib/middleware/permissions";
 import { getRequestContext } from "@/lib/middleware/context";
 import { ok, handleError } from "@/lib/utils/response";
 import { buildAnalyticsScope } from "@/lib/analytics/scope";
-import { startOfISTDay } from "@/lib/time/ist";
+import { startOfISTDay, startOfISTMonth, endOfISTDay } from "@/lib/time/ist";
 
 export async function GET() {
   try {
@@ -14,7 +14,7 @@ export async function GET() {
     const todayStart = startOfISTDay();
 
     const weekStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const monthStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const monthStart = startOfISTMonth();
 
     const [
       leadsCount,
@@ -32,7 +32,15 @@ export async function GET() {
       prisma.lead.count({ where: { ...scope.leadWhere, createdAt: { gte: todayStart } } }),
       prisma.lead.count({ where: { ...scope.leadWhere, createdAt: { gte: weekStart } } }),
       prisma.lead.count({ where: { ...scope.leadWhere, createdAt: { gte: monthStart } } }),
-      prisma.lead.count({ where: { ...scope.leadWhere, status: "FOLLOW_UP" } }),
+      prisma.lead.count({
+        where: {
+          ...scope.leadWhere,
+          OR: [
+            { status: "FOLLOW_UP" },
+            { nextFollowUp: { lte: endOfISTDay() }, status: { in: ["NEW", "INTERESTED", "PROSPECT"] } },
+          ],
+        },
+      }),
       prisma.student.count({ where: scope.studentWhere }),
       prisma.admission.count({ where: scope.admissionWhere }),
       scope.isCounselor

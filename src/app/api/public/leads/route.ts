@@ -283,6 +283,35 @@ export async function POST(req: NextRequest) {
           );
         }
         if (existingByPhone) {
+          // Task CRM-02: Do not reject repeat enquiry with 409.
+          // Add re-enquiry activity and return 200 with gateToken.
+          await prisma.$transaction([
+            prisma.lead.update({
+              where: { id: existingByPhone.id },
+              data: {
+                lastActivityAt: new Date(),
+                ...(courseInterest ? { courseInterest } : {}),
+              },
+            }),
+            prisma.leadActivity.create({
+              data: {
+                leadId: existingByPhone.id,
+                orgId: org.id,
+                activityType: "NOTE",
+                title: "Repeat enquiry received",
+                notes: `Repeat enquiry received via ${leadSource.replace("_", " ")}${courseInterest ? ` for ${courseInterest}` : ""}.`,
+                completedAt: new Date(),
+                metadata: {
+                  source: leadSource,
+                  webSource: source ?? "website",
+                  repeatEnquiry: true,
+                  utmCampaign: utmCampaign ?? null,
+                  utmSource: utmSource ?? null,
+                },
+              },
+            }),
+          ]);
+
           await emitLeadCreated({
             orgId: org.id,
             leadId: existingByPhone.id,
@@ -292,18 +321,18 @@ export async function POST(req: NextRequest) {
             actorName: "Public form",
             ipAddress: ip,
           });
+
+          return NextResponse.json(
+            {
+              success: true,
+              data: { id: existingByPhone.id, name: existingByPhone.name, createdAt: existingByPhone.createdAt },
+              gateToken: generateResourceToken(normalizedPhone),
+              eligibility: eligibilitySummary,
+              meta: { repeatEnquiry: true },
+            },
+            { status: 200 },
+          );
         }
-        console.log(JSON.stringify({
-          event: "lead_duplicate",
-          phone: normalizedPhone,
-          timestamp: new Date().toISOString(),
-        }));
-        // The existing lead is not modified from an unauthenticated request; the
-        // pre-check result is only echoed back to the visitor.
-        return NextResponse.json(
-          { error: "A lead with this phone already exists", eligibility: eligibilitySummary },
-          { status: 409 },
-        );
       }
       throw err;
     }

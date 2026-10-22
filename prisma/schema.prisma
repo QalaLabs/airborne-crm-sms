@@ -532,11 +532,14 @@ model Lead {
   lostReason     String?   @db.Text
   nextFollowUp   DateTime?
   lastActivityAt DateTime?
+  lastDisposition String?   @db.VarChar(50)
+  dispositionAt   DateTime?
 
   metadata  Json      @default("{}")
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
+  deletedBy String?   @db.Uuid
 
   // Relations
   org                   Organization           @relation(fields: [orgId], references: [id], onDelete: Cascade)
@@ -666,7 +669,7 @@ model Deal {
   creator    User?          @relation("DealCreator", fields: [createdBy], references: [id], onDelete: SetNull)
   activities LeadActivity[]
 
-  @@unique([orgId, leadId])
+  @@index([orgId, leadId])
   @@index([orgId, stage])
   @@index([orgId, isActive, stage])
   @@index([orgId, assignedTo])
@@ -1099,6 +1102,7 @@ model Student {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   deletedAt      DateTime?
+  deletedBy      String?       @db.Uuid
 
   org          Organization         @relation("OrgStudents", fields: [orgId], references: [id], onDelete: Cascade)
   campus       Campus?              @relation("CampusStudents", fields: [campusId], references: [id], onDelete: SetNull)
@@ -1210,6 +1214,8 @@ model Admission {
   metadata       Json           @default("{}")
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?
+  deletedBy      String?        @db.Uuid
 
   org          Organization         @relation("OrgAdmissions", fields: [orgId], references: [id], onDelete: Cascade)
   campus       Campus?              @relation("CampusAdmissions", fields: [campusId], references: [id], onDelete: SetNull)

@@ -13,7 +13,15 @@ import {
 } from "./lms-course-plan";
 import { courseOverview, isOverviewOnly, PUBLIC_SITE_URL } from "./course-overview";
 
-const REGISTRY = pathToFileURL(resolve(process.cwd(), "..", "src", "lib", "schema", "courseRegistry.js")).href;
+import { existsSync } from "node:fs";
+function getRegistryPath() {
+  const p1 = resolve(process.cwd(), "..", "Airbone", "src", "lib", "schema", "courseRegistry.js");
+  if (existsSync(p1)) return p1;
+  const p2 = resolve(process.cwd(), "..", "src", "lib", "schema", "courseRegistry.js");
+  if (existsSync(p2)) return p2;
+  return resolve(process.cwd(), "src", "lib", "schema", "courseRegistry.js");
+}
+const REGISTRY = pathToFileURL(getRegistryPath()).href;
 
 async function websiteCourses(): Promise<WebsiteCourse[]> {
   const mod = (await import(REGISTRY)) as { COURSE_SCHEMA: Record<string, WebsiteCourse> };

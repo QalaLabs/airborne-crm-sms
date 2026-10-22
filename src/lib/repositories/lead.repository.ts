@@ -42,6 +42,9 @@ const LEAD_SELECT = {
   lastActivityAt: true,
   convertedAt: true,
   lostReason: true,
+  lastDisposition: true,
+  dispositionAt: true,
+  deletedBy: true,
   customFields: true,
   metadata: true,
   createdAt: true,
@@ -349,10 +352,10 @@ export class LeadRepository {
     });
   }
 
-  static async softDelete(orgId: string, id: string) {
+  static async softDelete(orgId: string, id: string, deletedBy?: string) {
     return prisma.lead.update({
       where: { id, orgId },
-      data: { deletedAt: new Date() },
+      data: { deletedAt: new Date(), ...(deletedBy ? { deletedBy } : {}) },
       select: { id: true },
     });
   }

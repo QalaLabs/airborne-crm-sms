@@ -185,6 +185,7 @@ export function ResourceManager({
       description: (formData.get("description") as string) || undefined,
       fileUrl: (formData.get("fileUrl") as string) || undefined,
       externalUrl: (formData.get("externalUrl") as string) || undefined,
+      thumbnailId: item?.thumbnailId || (formData.get("thumbnailId") as string) || undefined,
       category: (formData.get("category") as string) || undefined,
       isGated: formData.get("isGated") === "true",
       tags: tagsRaw.split(",").map((t) => t.trim()).filter(Boolean),
@@ -227,7 +228,7 @@ export function ResourceManager({
     },
     {
       accessorKey: "downloadCount",
-      header: "Downloads",
+      header: hideType ? "Views" : "Downloads",
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">{row.original.downloadCount ?? 0}</span>
       ),
@@ -296,7 +297,7 @@ export function ResourceManager({
         action={
           <Button onClick={() => setEditor({ open: true, item: null })} className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20">
             <Plus className="h-4 w-4 mr-2" />
-            Create Resource
+            {hideType ? "Create Article" : "Create Resource"}
           </Button>
         }
       />
@@ -478,7 +479,7 @@ export function ResourceManager({
           <DialogFooter className="pt-4 border-t border-white/10">
             <Button type="button" variant="outline" onClick={() => setEditor({ open: false, item: null })} className="border-white/10 text-xs font-bold">Cancel</Button>
             <Button type="submit" form={editorFormId} disabled={saveMutation.isPending} className="bg-primary hover:bg-primary/90 text-white text-xs font-bold">
-              {saveMutation.isPending ? "Saving..." : editor.item ? "Save Changes" : "Create Resource"}
+              {saveMutation.isPending ? "Saving..." : editor.item ? "Save Changes" : hideType ? "Create Article" : "Create Resource"}
             </Button>
           </DialogFooter>
         </DialogContent>

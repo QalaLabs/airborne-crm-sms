@@ -49,6 +49,11 @@ export interface MetaLeadGenGraphLead {
   id?: string;
   created_time?: string;
   campaign_id?: string;
+  campaign_name?: string;
+  adset_id?: string;
+  adset_name?: string;
+  ad_id?: string;
+  ad_name?: string;
   field_data?: MetaLeadField[];
   is_test?: boolean;
 }
@@ -144,7 +149,7 @@ export const defaultFetchGraph: FetchGraph = async (leadgenId, accessToken, appS
   const proof = createHmac("sha256", appSecret).update(accessToken, "utf8").digest("hex");
   const path = encodeURIComponent(`/${leadgenId}`);
   const url =
-    `${GRAPH_URL}/v20.0${path}?fields=id,created_time,campaign_id,field_data,is_test` +
+    `${GRAPH_URL}/v20.0${path}?fields=id,created_time,campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,field_data,is_test` +
     `&access_token=${encodeURIComponent(accessToken)}&appsecret_proof=${encodeURIComponent(proof)}`;
   const res = await fetch(url, {
     method: "GET",
@@ -337,6 +342,11 @@ export async function processMetaLeadGen(params: {
     leadgenPageId: iso(value.page_id),
     leadgenCreatedTime: iso(value.created_time),
     leadgenCampaignId: iso(leadData.campaign_id),
+    campaign_name: iso(leadData.campaign_name),
+    adset_name: iso(leadData.adset_name),
+    ad_name: iso(leadData.ad_name),
+    adset_id: iso(leadData.adset_id),
+    ad_id: iso(leadData.ad_id),
     facebookTestLead: isTest,
     webSource: "facebook_lead_form",
     leadgenRawGraph: leadData as unknown as Prisma.InputJsonValue,
@@ -396,7 +406,9 @@ export async function processMetaLeadGen(params: {
           orgId,
           utmSource: "facebook",
           utmMedium: "ad",
-          utmCampaign: iso(leadData.campaign_id) ?? iso(value.form_id),
+          utmCampaign: iso(leadData.campaign_name) ?? iso(leadData.campaign_id) ?? iso(value.form_id),
+    utmContent: iso(leadData.ad_name) ?? iso(leadData.ad_id),
+    utmTerm: iso(leadData.adset_name) ?? iso(leadData.adset_id),
           customFields,
         },
         select: { id: true, name: true, createdAt: true },

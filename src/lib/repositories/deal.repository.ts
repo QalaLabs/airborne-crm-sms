@@ -121,6 +121,24 @@ export class DealRepository {
     });
   }
 
+  static async findActiveByLeadAndCourse(orgId: string, leadId: string, courseId?: string | null, title?: string) {
+    if (courseId) {
+      const deals = await prisma.deal.findMany({
+        where: { leadId, orgId, isActive: true, deletedAt: null },
+        select: DEAL_SELECT,
+      });
+      const match = deals.find(d => {
+        const meta = (d.metadata ?? {}) as Record<string, unknown>;
+        return meta.courseId === courseId || (title && d.title === title);
+      });
+      if (match) return match;
+    }
+    return prisma.deal.findFirst({
+      where: { leadId, orgId, isActive: true, deletedAt: null },
+      select: DEAL_SELECT,
+    });
+  }
+
   static async findActiveByLeadId(orgId: string, leadId: string) {
     return prisma.deal.findFirst({
       where: { leadId, orgId, isActive: true, deletedAt: null },

@@ -75,8 +75,8 @@ export class LeadTrashService {
 
   static async restore(ctx: RequestContext, id: string) {
     const lead = await this.findTrashed(ctx.orgId, id);
-    await prisma.lead.update({ where: { id: lead.id }, data: { deletedAt: null } });
-    await prisma.student.updateMany({ where: { leadId: lead.id, orgId: ctx.orgId }, data: { deletedAt: null } });
+    await prisma.lead.update({ where: { id: lead.id }, data: { deletedAt: null, deletedBy: null } });
+    await prisma.student.updateMany({ where: { leadId: lead.id, orgId: ctx.orgId }, data: { deletedAt: null, deletedBy: null } });
     await AuditService.write({
       orgId: ctx.orgId,
       userId: ctx.user.id,

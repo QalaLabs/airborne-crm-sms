@@ -10,7 +10,7 @@ export const resourceStatusValues = ["DRAFT", "PUBLISHED", "SCHEDULED", "ARCHIVE
 export const createResourceSchema = z.object({
   title: z.string().min(1).max(255),
   slug: z.string().max(255).regex(/^[a-z0-9-]+$/, "slug must be lowercase alphanumeric with hyphens").optional(),
-  description: z.string().max(5000).optional(),
+  description: z.string().optional(),
   type: z.enum(resourceTypeValues),
   fileUrl: z.string().url().max(2000).refine(isHttpUrl, "fileUrl must be an http(s) URL").optional(),
   externalUrl: z.string().url().max(2000).refine(isHttpUrl, "externalUrl must be an http(s) URL").optional(),

@@ -323,4 +323,10 @@ export class AdmissionRepository {
       select: { id: true, feePaid: true, feeBalance: true },
     });
   }
+  static async softDelete(orgId: string, id: string, deletedBy?: string) {
+    return prisma.admission.update({
+      where: { id, orgId },
+      data: { deletedAt: new Date(), ...(deletedBy ? { deletedBy } : {}) },
+    });
+  }
 }

@@ -120,7 +120,7 @@ export class DealService {
       value?: number | null;
     },
   ) {
-    const existing = await DealRepository.findActiveByLeadId(ctx.orgId, leadId);
+    const existing = input.courseId ? await DealRepository.findActiveByLeadAndCourse(ctx.orgId, leadId, input.courseId, input.title) : await DealRepository.findActiveByLeadId(ctx.orgId, leadId);
     if (existing) {
       // Merge course / batch / fee when counselor re-confirms PROSPECT details
       if (

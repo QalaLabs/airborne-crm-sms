@@ -150,11 +150,11 @@ export class StudentService {
 
   static async delete(ctx: RequestContext, id: string) {
     const student = await this.getById(ctx, id);
-    await StudentRepository.softDelete(ctx.orgId, id);
+    await StudentRepository.softDelete(ctx.orgId, id, ctx.user.id);
 
     // If linked to a lead, soft-delete the lead too so it appears in the Recycle Bin
     if (student.leadId) {
-      await LeadRepository.softDelete(ctx.orgId, student.leadId);
+      await LeadRepository.softDelete(ctx.orgId, student.leadId, ctx.user.id);
     } else {
       // If student was imported directly without a lead, synthesize a soft-deleted lead
       // so it shows up in the Recycle Bin and can be restored

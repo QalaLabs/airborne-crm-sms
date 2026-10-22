@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -14,6 +15,10 @@ test("empty / missing honeypot passes, filled honeypot trips", () => {
 });
 
 test("admin and marketing site agree on the honeypot field name", () => {
-  const web = readFileSync(path.resolve(process.cwd(), "../src/utils/honeypot.js"), "utf8");
+  const web = readFileSync([
+    path.resolve(process.cwd(), "../Airbone/src/utils/honeypot.js"),
+    path.resolve(process.cwd(), "../src/utils/honeypot.js"),
+    path.resolve(process.cwd(), "src/utils/honeypot.js")
+  ].find(p => fs.existsSync(p))!, "utf8");
   assert.match(web, new RegExp(`HONEYPOT_FIELD = '${HONEYPOT_FIELD}'`));
 });

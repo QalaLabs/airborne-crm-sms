@@ -142,7 +142,7 @@ function exitGuard(day: number): WorkflowStep {
   };
 }
 
-export function buildCplNurtureSteps(): WorkflowStep[] {
+export function buildCplNurtureSteps(overrideCampaignId?: string): WorkflowStep[] {
   const steps: WorkflowStep[] = [{ name: "Mark nurture active", type: "ADD_TAG", tag: CPL_NURTURE_ACTIVE_TAG }];
 
   for (const msg of CPL_NURTURE_MESSAGES) {
@@ -160,7 +160,7 @@ export function buildCplNurtureSteps(): WorkflowStep[] {
       templateName: msg.templateName,
       bodyValues: msg.bodyValues,
       headerValues: msg.headerValues,
-      providerCampaignId: msg.providerCampaignId,
+      providerCampaignId: overrideCampaignId ?? msg.providerCampaignId,
     });
     if (msg.day === 14) {
       steps.push({
@@ -193,6 +193,7 @@ export function buildCplNurtureKillSteps(): WorkflowStep[] {
       type: "STOP_WORKFLOW",
       reason: "CPL nurture: lead reached an exit status",
       stopAllForEntity: true,
+      onlyWorkflowCode: CPL_NURTURE_WORKFLOW_CODE,
     },
   ];
 }
