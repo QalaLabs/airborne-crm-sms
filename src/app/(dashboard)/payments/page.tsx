@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 
 const PAYMENT_STATUSES = ["PENDING", "COMPLETED", "FAILED", "PARTIALLY_REFUNDED", "REFUNDED"];
 const PAYMENT_METHODS = ["CASH", "CARD", "UPI", "BANK_TRANSFER", "CHEQUE", "DD"];
-const FEE_TYPES = ["tuition", "admission", "exam", "uniform", "other"];
+const FEE_TYPES = ["tuition", "admission", "registration", "exam", "uniform", "other"];
 
 interface LedgerPayment {
   id: string;
@@ -134,18 +134,27 @@ export default function PaymentsLedgerPage() {
     }
   };
 
-  const deletePayment = async (p: LedgerPayment) => {
+  const voidPayment = async (p: LedgerPayment) => {
     const label = p.receiptNo ?? p.id;
-    if (!window.confirm(`Permanently delete ledger entry ${label} (${money(p.amount)})? The admission balance will be recalculated. This cannot be undone.`)) {
+    const remaining = Number(p.amount ?? 0) - Number(p.refundedAmount ?? 0);
+    if (remaining <= 0) {
+      toast({ title: "Transaction already fully reversed / voided", variant: "destructive" });
+      return;
+    }
+    const reason = window.prompt(`Enter mandatory compliance audit reason to VOID transaction ${label} (${money(remaining)}):`);
+    if (!reason?.trim()) {
       return;
     }
     try {
-      await apiFetch(`/payments/${p.id}`, { method: "DELETE" });
+      await apiFetch(`/payments/${p.id}/refunds`, {
+        method: "POST",
+        body: JSON.stringify({ amount: remaining, notes: `VOID/REVERSAL: ${reason.trim()}` }),
+      });
       queryClient.invalidateQueries({ queryKey: ["payments"] });
-      toast({ title: "Ledger entry deleted", description: label });
+      toast({ title: "Transaction voided and reversed", description: label });
     } catch (err) {
       toast({
-        title: "Delete failed",
+        title: "Void failed",
         description: err instanceof Error ? err.message : "Unknown error",
         variant: "destructive",
       });
@@ -471,9 +480,9 @@ export default function PaymentsLedgerPage() {
                             size="sm"
                             data-testid={`payment-delete-${p.id}`}
                             className="h-6 px-1.5 text-[10px] text-rose-400 hover:text-rose-300 gap-1"
-                            onClick={() => void deletePayment(p)}
+                            onClick={() => void voidPayment(p)}
                           >
-                            <Trash2 className="h-3 w-3" /> Delete
+                            <RotateCcw className="h-3 w-3" /> Void / Reverse
                           </Button>
                         )}
                       </div>

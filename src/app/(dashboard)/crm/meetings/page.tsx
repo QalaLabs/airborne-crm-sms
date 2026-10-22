@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Calendar, Clock, Video, Plus } from "lucide-react";
-import { getMeetings, scheduleMeeting, cancelMeeting } from "@/lib/crm/meetings";
+import { getMeetings, scheduleMeeting, cancelMeeting, completeMeeting } from "@/lib/crm/meetings";
 import type { Meeting } from "@/lib/crm/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -68,6 +68,9 @@ export default function CRMMeetingsPage() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [showSchedule, setShowSchedule] = React.useState(false);
+  const [completingMeeting, setCompletingMeeting] = React.useState<Meeting | null>(null);
+  const [completionForm, setCompletionForm] = React.useState({ mode: "ONLINE" as MeetingMode, durationMins: 30, outcome: "", notes: "" });
+  const [isCompleting, setIsCompleting] = React.useState(false);
   const [cancelling, setCancelling] = React.useState<string | null>(null);
 
   const load = React.useCallback(() => {
@@ -257,15 +260,32 @@ export default function CRMMeetingsPage() {
                       <p className="text-[11px] text-muted-foreground mt-1.5">{meeting.notes}</p>
                     )}
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 shrink-0 text-[10px] border-white/10 text-muted-foreground hover:text-red-400"
-                    disabled={cancelling === meeting.id}
-                    onClick={() => handleCancel(meeting.id)}
-                  >
-                    {cancelling === meeting.id ? "Cancelling..." : "Cancel"}
-                  </Button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Button
+                      size="sm"
+                      className="h-7 text-[10px] bg-primary text-black hover:bg-primary/90 font-bold"
+                      onClick={() => {
+                        setCompletingMeeting(meeting);
+                        setCompletionForm({
+                          mode: readMeetingMode(meeting.metadata) || "ONLINE",
+                          durationMins: meeting.durationMins || 30,
+                          outcome: "",
+                          notes: meeting.notes || "",
+                        });
+                      }}
+                    >
+                      Complete
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-[10px] border-white/10 text-muted-foreground hover:text-red-400"
+                      disabled={cancelling === meeting.id}
+                      onClick={() => handleCancel(meeting.id)}
+                    >
+                      {cancelling === meeting.id ? "Cancelling..." : "Cancel"}
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>

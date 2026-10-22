@@ -744,9 +744,9 @@ export class LeadService {
       data: {
         orgId: ctx.orgId,
         leadId,
-        type: "CALL",
+        activityType: "CALL",
         title: `Call Disposition: ${input.disposition}`,
-        description: input.remarks || `Disposition logged as ${input.disposition}`,
+        notes: input.remarks || `Disposition logged as ${input.disposition}`,
         performedBy: ctx.user.id,
         metadata: {
           disposition: input.disposition,
@@ -857,7 +857,7 @@ export class LeadService {
       where: { id: activityId },
       data: {
         completedAt: input.completedAt ? new Date(input.completedAt) : new Date(),
-        ...(input.outcome !== undefined ? { outcome: input.outcome } : {}),
+        ...(input.outcome !== undefined ? { outcome: input.outcome, completedAt: existing.completedAt ?? new Date() } : {}),
       },
       include: {
         performer: { select: { id: true, name: true, avatarUrl: true } },

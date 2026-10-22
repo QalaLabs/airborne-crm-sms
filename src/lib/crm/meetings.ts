@@ -51,3 +51,24 @@ export async function updateMeeting(id: string, input: UpdateMeetingInput): Prom
 export async function cancelMeeting(id: string): Promise<Meeting> {
   return apiFetch<Meeting>(`/crm/meetings/${id}`, { method: "DELETE" });
 }
+
+export interface CompleteMeetingInput {
+  mode: MeetingMode;
+  durationMins: number;
+  outcome: string;
+  notes?: string;
+}
+
+/** Complete a meeting with mandatory resolution fields (CRM-13). */
+export async function completeMeeting(id: string, input: CompleteMeetingInput): Promise<Meeting> {
+  return apiFetch<Meeting>(`/crm/meetings/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      durationMins: input.durationMins,
+      mode: input.mode,
+      notes: input.notes,
+      outcome: input.outcome,
+      metadata: { meetingMode: input.mode },
+    }),
+  });
+}
