@@ -11,6 +11,12 @@ export class AutoCallingService {
   /** Maximum number of simultaneous voice agent calls permitted at any moment */
   static readonly MAX_CONCURRENT_CALLS = 2;
 
+  /** Maximum number of total call attempts permitted per candidate (initial attempt + up to 2 retries) */
+  static readonly MAX_CALL_ATTEMPTS = 3;
+
+  /** Minimum cool-off duration before retrying an unanswered lead (2 hours) */
+  static readonly RETRY_COOL_OFF_MS = 2 * 60 * 60 * 1000;
+
   /** Safety expiration lease for active calls (15 mins) to prevent orphaned locks */
   static readonly ACTIVE_CALL_LEASE_MS = 15 * 60 * 1000;
 
@@ -51,6 +57,46 @@ export class AutoCallingService {
     if (digits.length === 10) return `+91${digits}`;
     if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
     return `+${digits}`;
+  }
+
+  /**
+   * Evaluates whether an unanswered candidate qualifies for an automated retry call.
+   * Pure business logic method for easy testing and predictable execution.
+   */
+  static isEligibleForRetry(params: {
+    totalCalls: number;
+    hasConnectedCall: boolean;
+    lastCallOutcome: string | null;
+    lastCallCompleted: boolean;
+    lastCallCreatedAt: Date;
+    hasManualIntervention: boolean;
+    nextFollowUp?: Date | null;
+    now?: Date;
+  }): { eligible: boolean; reason?: string } {
+    if (params.totalCalls >= this.MAX_CALL_ATTEMPTS) {
+      return { eligible: false, reason: "max_attempts_reached" };
+    }
+    if (params.hasConnectedCall) {
+      return { eligible: false, reason: "already_connected" };
+    }
+    if (!params.lastCallCompleted) {
+      return { eligible: false, reason: "call_in_progress" };
+    }
+    const unanswered = ["NO_ANSWER", "BUSY", "MISSED", "REJECTED", "FAILED", "UNREACHABLE", "EARLY_HANGUP"];
+    if (!unanswered.includes(params.lastCallOutcome || "")) {
+      return { eligible: false, reason: "last_call_not_unanswered" };
+    }
+    if (params.hasManualIntervention) {
+      return { eligible: false, reason: "manual_agent_active" };
+    }
+    const currentTime = params.now || new Date();
+    const isPastDue = params.nextFollowUp ? new Date(params.nextFollowUp) <= currentTime : false;
+    const isCoolOffElapsed =
+      currentTime.getTime() - new Date(params.lastCallCreatedAt).getTime() >= this.RETRY_COOL_OFF_MS;
+    if (!isPastDue && !isCoolOffElapsed) {
+      return { eligible: false, reason: "cool_off_period" };
+    }
+    return { eligible: true };
   }
 
   /**
@@ -170,18 +216,36 @@ export class AutoCallingService {
   /**
    * Internal call dispatcher to the voice assistant microservice.
    */
-  static async dispatchCall(orgId: string, lead: any, targetPhone: string): Promise<AutoCallResult> {
+  static async dispatchCall(
+    orgId: string,
+    lead: any,
+    targetPhone: string,
+    options?: { attemptNumber?: number; customNotes?: string }
+  ): Promise<AutoCallResult> {
+    const attempt = options?.attemptNumber || 1;
+    const title =
+      attempt > 1
+        ? `AI Voice Agent Retry Call In Progress (Attempt ${attempt}/${this.MAX_CALL_ATTEMPTS})`
+        : "AI Voice Agent Call In Progress";
+
     const activity = await prisma.leadActivity.create({
       data: {
         leadId: lead.id,
         orgId,
         activityType: "CALL",
-        title: "AI Voice Agent Call In Progress",
-        notes: `Automated outbound AI voice call dispatched to ${targetPhone} for new enquiry (${lead.courseInterest || "Pilot Training"}).`,
+        title,
+        notes:
+          options?.customNotes ||
+          `Automated outbound AI voice call dispatched to ${targetPhone} for new enquiry (${
+            lead.courseInterest || "Pilot Training"
+          }).`,
         outcome: "IN_PROGRESS",
         completedAt: null, // Active call
         metadata: {
           autoCall: true,
+          isRetry: attempt > 1,
+          retryAttempt: attempt,
+          maxAttempts: this.MAX_CALL_ATTEMPTS,
           phone: targetPhone,
           candidate: lead.name,
           course: lead.courseInterest,
@@ -202,15 +266,22 @@ export class AutoCallingService {
       name: lead.name || "Candidate",
       course_interest: lead.courseInterest || "Commercial Pilot License (CPL)",
       city: lead.city || undefined,
-      notes: `New ${lead.source || "Website"} enquiry for ${lead.courseInterest || "Pilot Training"}. Qualify 10+2 PCM eligibility and invite for counseling at Dwarka campus.`,
-      call_objective: "Lead qualification and counseling booking",
-      source: "CRM_AUTO_CALL",
+      notes:
+        options?.customNotes ||
+        `Automated lead qualification call. Course: ${lead.courseInterest || "CPL"}. Candidate: ${lead.name}`,
+      call_objective:
+        attempt > 1 ? "Follow-up qualification and callback scheduling" : "Lead qualification and counseling booking",
+      custom_instructions:
+        attempt > 1
+          ? `Candidate previously did not answer (attempt ${attempt} of ${this.MAX_CALL_ATTEMPTS}). Warmly re-introduce Captain Navrang from Airborne Aviation.`
+          : undefined,
+      source: attempt > 1 ? "AI_AUTO_RETRY" : "AI_AUTO_DIALER",
     };
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
+    try {
       const response = await fetch(`${voiceAssistantUrl.replace(/\/$/, "")}/api/calls/dispatch`, {
         method: "POST",
         headers: {
@@ -221,7 +292,6 @@ export class AutoCallingService {
         signal: controller.signal,
       });
 
-      clearTimeout(timeoutId);
       const resData = (await response.json().catch(() => ({}))) as Record<string, unknown>;
 
       if (!response.ok) {
@@ -229,43 +299,18 @@ export class AutoCallingService {
           (typeof resData?.message === "string" && resData.message) ||
           (typeof resData?.error === "string" && resData.error) ||
           `Voice assistant dispatch failed (${response.status})`;
-
-        // If the voice assistant rejected due to concurrency, place back into queue
-        if (errorMsg.includes("capacity") || errorMsg.includes("concurrency")) {
-          await prisma.leadActivity.update({
-            where: { id: activity.id },
-            data: {
-              outcome: "QUEUED",
-              title: "AI Voice Agent Call Queued (Carrier Capacity)",
-              notes: `Carrier capacity limit reached. Re-queued for immediate retry.`,
-            },
-          });
-          return { status: "queued", reason: "carrier_concurrency", activityId: activity.id };
-        }
-
-        await prisma.leadActivity.update({
-          where: { id: activity.id },
-          data: {
-            outcome: "FAILED",
-            completedAt: new Date(),
-            notes: `Dispatch error: ${errorMsg}`,
-          },
-        });
-        return { status: "failed", error: errorMsg, activityId: activity.id };
+        throw new Error(errorMsg);
       }
 
       await prisma.leadActivity.update({
         where: { id: activity.id },
         data: {
+          outcome: "IN_PROGRESS",
           metadata: {
-            autoCall: true,
-            phone: targetPhone,
-            candidate: lead.name,
-            course: lead.courseInterest,
+            ...(activity.metadata as Record<string, unknown>),
             provider: resData?.provider || "telecmi",
             requestId: resData?.request_id || null,
             greeting: resData?.greeting || null,
-            dispatchedAt: new Date().toISOString(),
           },
         },
       });
@@ -287,12 +332,143 @@ export class AutoCallingService {
         },
       });
       return { status: "failed", error: error.message, activityId: activity.id };
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
   /**
+   * Identifies leads that did not pick up an agent call (NO_ANSWER, BUSY, MISSED, etc.),
+   * where manual counselors are not currently calling, and triggers an automated retry.
+   * Only triggers when there are NO waiting new leads to call on, up to a maximum of 3 total attempts.
+   */
+  static async processUnansweredRetries(orgId: string): Promise<number> {
+    if (!this.isCallingWindowOpen()) return 0;
+
+    let activeCalls = await this.getActiveCallsCount(orgId);
+    if (activeCalls >= this.MAX_CONCURRENT_CALLS) return 0;
+
+    const availableSlots = this.MAX_CONCURRENT_CALLS - activeCalls;
+    if (availableSlots <= 0) return 0;
+
+    const nonCallable = [
+      "WON",
+      "LOST",
+      "DND",
+      "OPTED_OUT",
+      "CONVERTED",
+      "NOT_INTERESTED",
+      "INVALID_NUMBER",
+      "JOINED_OTHERS",
+      "JOB_SEEKER",
+      "TEST_LEAD",
+    ];
+
+    const coolOffThreshold = new Date(Date.now() - this.RETRY_COOL_OFF_MS);
+
+    // Query candidate leads with their call activities
+    const candidateLeads = await prisma.lead.findMany({
+      where: {
+        orgId,
+        deletedAt: null,
+        phone: { not: "" },
+        status: { notIn: nonCallable as any },
+        activities: {
+          some: {
+            activityType: "CALL",
+          },
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        city: true,
+        status: true,
+        courseInterest: true,
+        nextFollowUp: true,
+        activities: {
+          where: {
+            activityType: "CALL",
+          },
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            outcome: true,
+            performedBy: true,
+            completedAt: true,
+            createdAt: true,
+          },
+        },
+      },
+      take: 20,
+    });
+
+    let retriesDispatched = 0;
+
+    for (const lead of candidateLeads) {
+      if (retriesDispatched >= availableSlots) break;
+
+      const callActivities = lead.activities;
+      const totalCalls = callActivities.length;
+      const lastCall = callActivities[0];
+      if (!lastCall) continue;
+
+      const hasConnectedCall = callActivities.some((c) =>
+        ["CONNECTED", "COMPLETED"].includes(c.outcome || "")
+      );
+
+      // Verify no human counselor has logged activity recently
+      const hasManualIntervention = !!(await prisma.leadActivity.findFirst({
+        where: {
+          leadId: lead.id,
+          orgId,
+          performedBy: { not: null },
+          createdAt: { gte: coolOffThreshold },
+        },
+        select: { id: true },
+      }));
+
+      const eligibility = this.isEligibleForRetry({
+        totalCalls,
+        hasConnectedCall,
+        lastCallOutcome: lastCall.outcome,
+        lastCallCompleted: lastCall.completedAt !== null,
+        lastCallCreatedAt: lastCall.createdAt,
+        hasManualIntervention,
+        nextFollowUp: lead.nextFollowUp,
+      });
+
+      if (!eligibility.eligible) {
+        continue;
+      }
+
+      // Re-verify concurrency limit before dispatching
+      const currentActive = await this.getActiveCallsCount(orgId);
+      if (currentActive >= this.MAX_CONCURRENT_CALLS) break;
+
+      const targetPhone = this.normalizePhone(lead.phone);
+      const attemptNumber = totalCalls + 1;
+
+      const res = await this.dispatchCall(orgId, lead, targetPhone, {
+        attemptNumber,
+        customNotes: `Automated retry call #${attemptNumber} (previous attempt was ${lastCall.outcome || "unanswered"}). Candidate: ${lead.name}`,
+      });
+
+      if (res.status === "dispatched") {
+        retriesDispatched++;
+      }
+    }
+
+    return retriesDispatched;
+  }
+
+  /**
    * Drains the auto-call queue when an ongoing call completes or via cron.
-   * Dials waiting leads sequentially while strictly adhering to MAX_CONCURRENT_CALLS (2).
+   * Priority:
+   * 1. Waiting new leads in QUEUED state (strictly highest priority).
+   * 2. Unanswered retry candidates (when no new leads remain, max 3 attempts per lead).
+   * Dials sequentially while strictly adhering to MAX_CONCURRENT_CALLS (2).
    */
   static async processQueue(orgId: string): Promise<number> {
     if (!this.isCallingWindowOpen()) return 0;
@@ -303,6 +479,7 @@ export class AutoCallingService {
     const availableSlots = this.MAX_CONCURRENT_CALLS - activeCalls;
     if (availableSlots <= 0) return 0;
 
+    // Phase 1: Drain waiting new leads (strictly highest priority)
     const queuedActivities = await prisma.leadActivity.findMany({
       where: {
         orgId,
@@ -360,6 +537,22 @@ export class AutoCallingService {
       if (res.status === "dispatched") {
         dispatchedCount++;
       }
+    }
+
+    // Phase 2: If there are NO new leads waiting to be called, check for unanswered retry candidates
+    // Condition: activeCalls < MAX_CONCURRENT_CALLS and zero queued new leads remaining
+    const remainingQueuedCount = await prisma.leadActivity.count({
+      where: {
+        orgId,
+        activityType: "CALL",
+        outcome: "QUEUED",
+        completedAt: null,
+      },
+    });
+
+    if (remainingQueuedCount === 0) {
+      const retriesDispatched = await this.processUnansweredRetries(orgId);
+      dispatchedCount += retriesDispatched;
     }
 
     return dispatchedCount;

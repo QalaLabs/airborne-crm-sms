@@ -770,6 +770,23 @@ export class AdmissionService {
         },
       });
 
+      // SMS-01: Auto-trigger stage transactional email
+      void (async () => {
+        try {
+          const { StageEmailService } = await import("@/lib/services/stage-email.service");
+          await StageEmailService.triggerStageEmail({
+            orgId: ctx.orgId,
+            stage: toStage,
+            leadId: admission.leadId,
+            admissionId: id,
+            courseName: admission.courseName,
+            performedBy: ctx.user?.id,
+          });
+        } catch (e) {
+          console.error("StageEmailService failed:", e);
+        }
+      })();
+
       // Task 10: Auto-trigger enrollment confirmation letter email
       if (toStage === "ENROLLED") {
         void (async () => {

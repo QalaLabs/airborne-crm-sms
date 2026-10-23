@@ -26,6 +26,7 @@ export const publicLeadSchema = z.object({
   // Course eligibility pre-check answers ({ questionKey: "yes" | "no" }); validated
   // against the selected course's question set by the intake route.
   eligibility: z.record(z.string().max(40), z.unknown()).nullish(),
+  tags: z.array(z.string().max(50)).max(20).optional(),
 });
 
 export type PublicLeadInput = z.infer<typeof publicLeadSchema>;

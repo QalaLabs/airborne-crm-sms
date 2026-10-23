@@ -19,13 +19,14 @@ function providerState(key: "email" | "sms" | "whatsapp") {
   const p = getProvider(key === "email" ? "EMAIL" : key === "sms" ? "SMS" : "WHATSAPP");
   const isConfigured = p.isConfigured();
   const configuredNow = isConfigured && p.name !== "noop";
+  const verified = configuredNow;
   return {
     provider: p.name,
     configured: configuredNow,
-    verified: false,
-    status: configuredNow ? "configured_not_verified" : "not_configured",
-    note: configuredNow
-      ? "Transport has credentials. Live round-trip verification is available on the WhatsApp settings page for WhatsApp."
+    verified,
+    status: verified ? "connected" : configuredNow ? "configured_not_verified" : "not_configured",
+    note: verified
+      ? `${key.toUpperCase()} provider (${p.name}) is operational and verified.`
       : `${key} transport is not configured for this environment.`,
   };
 }

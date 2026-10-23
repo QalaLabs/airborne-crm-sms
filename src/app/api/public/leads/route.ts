@@ -68,6 +68,7 @@ export async function POST(req: NextRequest) {
       courseInterest,
       pincode,
       source,
+      tags,
       utmSource,
       utmMedium,
       utmCampaign,
@@ -96,6 +97,11 @@ export async function POST(req: NextRequest) {
     const normalizedPhone = String(phone).trim();
     const leadSource: LeadSource = SOURCE_MAP[source?.toLowerCase() ?? ""] ?? "HOMEPAGE_CTA";
     const requestUuid = leadUuid?.trim() || null;
+    const leadTags = Array.isArray(tags) && tags.length > 0
+      ? tags
+      : (source?.toLowerCase().includes("starter_kit") || source?.toLowerCase().includes("starter kit")
+        ? ["starter_kit_download"]
+        : []);
 
     // Advisory course pre-check: validated against the selected course's questions
     // (400 on unknown questions/values) but never blocks a valid enquiry.
@@ -153,6 +159,7 @@ export async function POST(req: NextRequest) {
             courseInterest: courseInterest ?? null,
             pincode: pincode ?? null,
             source: leadSource,
+            tags: leadTags,
             orgId: org.id,
             utmSource: utmSource ?? null,
             utmMedium: utmMedium ?? null,

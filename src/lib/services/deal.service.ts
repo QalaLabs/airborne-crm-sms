@@ -278,6 +278,23 @@ export class DealService {
 
     const updated = await DealRepository.update(ctx.orgId, id, input);
 
+    if (input.stage && input.stage !== existing.stage) {
+      void (async () => {
+        try {
+          const { StageEmailService } = await import("@/lib/services/stage-email.service");
+          await StageEmailService.triggerStageEmail({
+            orgId: ctx.orgId,
+            stage: updated.stage,
+            leadId: existing.leadId,
+            admissionId: existing.admissionId,
+            performedBy: ctx.user?.id,
+          });
+        } catch (e) {
+          console.error("StageEmailService failed for deal:", e);
+        }
+      })();
+    }
+
     await AuditService.write({
       orgId: ctx.orgId,
       userId: ctx.user.id,
