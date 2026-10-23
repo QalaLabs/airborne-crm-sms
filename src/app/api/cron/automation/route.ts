@@ -11,6 +11,7 @@ import { PageService } from "@/lib/services/page.service";
 import { CourseService } from "@/lib/services/course.service";
 import { ResourceService } from "@/lib/services/resource.service";
 import { LeadTrashService } from "@/lib/services/lead-trash.service";
+import { AutoCallingService } from "@/lib/services/auto-calling.service";
 
 export async function POST(req: NextRequest) {
   const auth = verifyCronSecret(req);
@@ -22,17 +23,27 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const [metrics, workflows, events, fallback, pagesPublished, coursesPublished, resourcesPublished, leadTrash] =
-      await Promise.all([
-        collectAutomationMetrics(),
-        reconcileDueWorkflowRuns(50),
-        reconcileUnprocessedEvents(50),
-        LeadService.syncFallbackLeadsCron(),
-        PageService.publishScheduledPages(),
-        CourseService.publishScheduledCourses(),
-        ResourceService.publishScheduledResources(),
-        LeadTrashService.purgeExpired(),
-      ]);
+    const [
+      metrics,
+      workflows,
+      events,
+      fallback,
+      pagesPublished,
+      coursesPublished,
+      resourcesPublished,
+      leadTrash,
+      autoCallQueue,
+    ] = await Promise.all([
+      collectAutomationMetrics(),
+      reconcileDueWorkflowRuns(50),
+      reconcileUnprocessedEvents(50),
+      LeadService.syncFallbackLeadsCron(),
+      PageService.publishScheduledPages(),
+      CourseService.publishScheduledCourses(),
+      ResourceService.publishScheduledResources(),
+      LeadTrashService.purgeExpired(),
+      AutoCallingService.processAllQueues(),
+    ]);
 
     return NextResponse.json({
       ok: true,
@@ -45,6 +56,7 @@ export async function POST(req: NextRequest) {
       coursesPublished,
       resourcesPublished,
       leadTrash,
+      autoCallQueue,
     });
   } catch (err) {
     console.error("[Cron/automation] failed", err);

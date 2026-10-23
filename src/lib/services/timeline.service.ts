@@ -27,6 +27,8 @@ export interface TimelineEntry {
   workflowName?: string | null;
   /** activity entries only */
   activityType?: string | null;
+  metadata?: Record<string, unknown> | null;
+  durationMins?: number | null;
 }
 
 // Feed/notification rows use lowercase singular object types.
@@ -83,6 +85,8 @@ export class TimelineService {
           dueAt: true,
           completedAt: true,
           createdAt: true,
+          metadata: true,
+          durationMins: true,
           performer: { select: { name: true } },
         },
       }),
@@ -129,6 +133,8 @@ export class TimelineService {
           a.activityType === "TASK" ? (a.completedAt ? "DONE" : "OPEN") : (a.outcome ?? null),
         actorName: a.performer?.name ?? null,
         activityType: a.activityType,
+        metadata: (a.metadata as Record<string, unknown>) ?? null,
+        durationMins: a.durationMins ?? null,
       })),
       ...notifications.map((n): TimelineEntry => ({
         id: `notification:${n.id}`,

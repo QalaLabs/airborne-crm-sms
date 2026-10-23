@@ -9,6 +9,7 @@ import {
   ArrowLeft, Mail, Phone, Calendar, User, MessageSquare,
   PhoneCall, Clock, FileText, Sparkles, Plus, CheckCircle2,
   UserPlus, GraduationCap, Send, Workflow, ChevronLeft, ChevronRight, X, Pencil,
+  Bot, Volume2, Download, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -104,6 +105,7 @@ interface LeadActivity {
   dueAt?: string | null;
   completedAt?: string | null;
   durationMins?: number | null;
+  metadata?: Record<string, any> | null;
   performer?: { id: string; name: string } | null;
   createdAt: string;
 }
@@ -119,6 +121,8 @@ interface TimelineEntry {
   actorName?: string | null;
   workflowName?: string | null;
   activityType?: string | null;
+  metadata?: Record<string, any> | null;
+  durationMins?: number | null;
 }
 
 interface CounselorOption {
@@ -257,6 +261,88 @@ function getWhatsAppGreeting(lead: { name: string; courseInterest?: string | nul
   }
 }
 
+function CallRecordingPlayer({
+  metadata,
+  durationMins,
+  notes,
+}: {
+  metadata?: Record<string, any> | null;
+  durationMins?: number | null;
+  notes?: string | null;
+}) {
+  const meta = metadata ?? {};
+  const recordingUrl =
+    meta.recording_url ||
+    meta.recordingUrl ||
+    meta.record_url ||
+    meta.file_url ||
+    meta.gcs_recording_url ||
+    null;
+
+  const transcript =
+    meta.transcript ||
+    (notes && typeof notes === "string" && notes.includes("AI Voice Advisor Call Log:") ? notes : null);
+
+  const durationSec = meta.duration_seconds
+    ? Number(meta.duration_seconds)
+    : durationMins
+    ? durationMins * 60
+    : null;
+
+  const durationLabel = durationSec
+    ? `${Math.floor(durationSec / 60)}m ${durationSec % 60}s`
+    : durationMins
+    ? `${durationMins} mins`
+    : null;
+
+  if (!recordingUrl && !transcript) return null;
+
+  return (
+    <div className="mt-3 p-3 rounded-xl bg-slate-950/70 border border-emerald-500/30 space-y-2">
+      <div className="flex items-center justify-between text-xs font-semibold text-emerald-400 flex-wrap gap-2">
+        <span className="flex items-center gap-1.5">
+          <Volume2 className="h-3.5 w-3.5 text-emerald-400 animate-pulse" />
+          <span>Call Recording</span>
+        </span>
+        {durationLabel ? (
+          <span className="text-[10px] font-mono text-muted-foreground bg-white/5 px-2 py-0.5 rounded">
+            {durationLabel}
+          </span>
+        ) : null}
+      </div>
+
+      {recordingUrl ? (
+        <div className="space-y-1.5">
+          <audio controls className="w-full h-8 rounded bg-slate-900 border border-white/10" preload="metadata" src={recordingUrl}>
+            Your browser does not support audio playback.
+          </audio>
+          <div className="flex items-center justify-between pt-0.5 text-[10px] text-muted-foreground">
+            <a
+              href={recordingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-emerald-400 underline flex items-center gap-1"
+            >
+              <Download className="h-3 w-3" /> Download / Open Audio
+            </a>
+          </div>
+        </div>
+      ) : null}
+
+      {transcript ? (
+        <details className="text-xs pt-1 border-t border-white/5">
+          <summary className="cursor-pointer font-semibold text-indigo-300 hover:text-white select-none text-[11px]">
+            View Call Transcript
+          </summary>
+          <div className="mt-1.5 p-2.5 rounded bg-black/40 border border-white/5 font-mono text-[10px] text-slate-300 leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">
+            {transcript}
+          </div>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
 export default function LeadDetailPage() {
   const { data: session } = useSession();
   const { id } = useParams<{ id: string }>();
@@ -287,6 +373,35 @@ export default function LeadDetailPage() {
     state: "",
     pincode: "",
     manualAmount: "",
+  });
+
+  const [agentCallOpen, setAgentCallOpen] = React.useState(false);
+  const [agentCallObjective, setAgentCallObjective] = React.useState("");
+
+  const agentCallMutation = useMutation({
+    mutationFn: (body: { objective?: string }) =>
+      apiFetch<{ success: boolean; message: string; dispatch?: any }>(`/leads/${id}/agent-call`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (data) => {
+      setAgentCallOpen(false);
+      setAgentCallObjective("");
+      queryClient.invalidateQueries({ queryKey: ["lead", id] });
+      queryClient.invalidateQueries({ queryKey: ["lead", id, "activities"] });
+      queryClient.invalidateQueries({ queryKey: ["lead", id, "timeline"] });
+      toast({
+        title: "AI Voice Call Initiated",
+        description: data.message || `Outbound agent call dispatched to ${lead?.phone}.`,
+      });
+    },
+    onError: (err: Error) => {
+      toast({
+        title: "Call Dispatch Failed",
+        description: err.message,
+        variant: "destructive",
+      });
+    },
   });
 
   const triggerInteraktMutation = useMutation({
@@ -679,6 +794,20 @@ export default function LeadDetailPage() {
                   >
                     <MessageSquare className="h-3.5 w-3.5" /> WhatsApp Web
                   </a>
+                  <Button
+                    size="sm"
+                    onClick={() => setAgentCallOpen(true)}
+                    disabled={agentCallMutation.isPending}
+                    className="h-7 px-2.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm flex items-center gap-1.5"
+                    title="Initiate outbound AI Voice Assistant call to this candidate"
+                  >
+                    {agentCallMutation.isPending ? (
+                      <Loader2 className="h-3 w-3 animate-spin text-white" />
+                    ) : (
+                      <Bot className="h-3.5 w-3.5 text-white" />
+                    )}
+                    {agentCallMutation.isPending ? "Dialing..." : "Agent Call"}
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
@@ -1395,6 +1524,79 @@ export default function LeadDetailPage() {
         </DialogContent>
       </Dialog>
 
+
+      {/* Initiate Agent Call Modal */}
+      <Dialog open={agentCallOpen} onOpenChange={setAgentCallOpen}>
+        <DialogContent className="glass-card border-white/10 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                <Bot className="h-4 w-4" />
+              </div>
+              Initiate Outbound AI Agent Call
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              The AI Voice Assistant will dial <span className="text-white font-mono font-bold">{lead.phone}</span> immediately via TeleCMI and engage the candidate as Captain Navrang. The call audio recording and transcript will be saved directly against this lead.
+            </p>
+
+            <div className="p-3 rounded-xl bg-secondary/30 border border-white/5 space-y-1.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Candidate:</span>
+                <span className="font-semibold text-white">{lead.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Course Interest:</span>
+                <span className="font-semibold text-white">{lead.courseInterest || "Commercial Pilot License (CPL)"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Caller ID:</span>
+                <span className="font-mono text-indigo-300">+91 79434 46755 (Airborne AI)</span>
+              </div>
+              <div className="flex justify-between items-center pt-1 border-t border-white/5">
+                <span className="text-muted-foreground">Concurrency Guard:</span>
+                <span className="font-mono text-emerald-400 text-[11px] font-semibold">Active (Max 2 simultaneous calls)</span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground font-semibold">
+                Call Objective & Guidance for AI (Optional)
+              </Label>
+              <Textarea
+                value={agentCallObjective}
+                onChange={(e) => setAgentCallObjective(e.target.value)}
+                placeholder="e.g. Inquire if candidate passed 10+2 with Physics & Maths, inform about upcoming CPL batch, or invite for campus visit at Ramphal Chowk."
+                className="bg-secondary/40 border-white/10 text-xs h-24"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setAgentCallOpen(false)} disabled={agentCallMutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold gap-2 text-xs"
+              disabled={agentCallMutation.isPending}
+              onClick={() => agentCallMutation.mutate({ objective: agentCallObjective })}
+            >
+              {agentCallMutation.isPending ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Connecting Carrier...
+                </>
+              ) : (
+                <>
+                  <PhoneCall className="h-3.5 w-3.5" />
+                  Dial Candidate Now
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Edit Profile Details Modal */}
       <Dialog open={editProfileOpen} onOpenChange={setEditProfileOpen}>
         <DialogContent className="glass-card border-white/10 text-white max-w-lg">
@@ -1611,6 +1813,7 @@ function UnifiedTimeline({
                     ) : null}
                   </div>
                   {entry.detail ? <p className="text-xs text-muted-foreground leading-relaxed break-words">{entry.detail}</p> : null}
+                  <CallRecordingPlayer metadata={entry.metadata} durationMins={entry.durationMins} notes={entry.detail} />
                   {entry.actorName ? (
                     <p className="text-[10px] text-primary font-semibold mt-1">
                       {entry.kind === "automation" ? "Triggered by" : "Logged by"} {entry.actorName}
@@ -1694,6 +1897,7 @@ function TimelineCard({
                     <span className="text-[10px] font-medium text-muted-foreground">{formatDateTime(act.createdAt)}</span>
                   </div>
                   {act.notes ? <p className="text-xs text-muted-foreground leading-relaxed">{act.notes}</p> : null}
+                  <CallRecordingPlayer metadata={act.metadata} durationMins={act.durationMins} notes={act.notes} />
                   {act.outcome ? <p className="text-[10px] text-emerald-400 mt-1">Outcome: {act.outcome}</p> : null}
                   {act.dueAt ? <p className="text-[10px] text-amber-400 mt-1">Due {formatDateTime(act.dueAt)}</p> : null}
                   {act.performer ? (

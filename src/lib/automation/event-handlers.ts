@@ -39,6 +39,15 @@ async function handleLeadCreated(event: AppEvent): Promise<void> {
       // Do not send a parallel NEW_LEAD template from Airborne.
     }
   }
+
+  // Automated Outbound AI Voice Call:
+  // Initiates qualification call to candidate, respecting max 2 concurrent calls limit.
+  try {
+    const { AutoCallingService } = await import("@/lib/services/auto-calling.service");
+    await AutoCallingService.handleNewLead(event.orgId, leadId);
+  } catch (err) {
+    console.error("[AutoCalling] handleNewLead failed:", leadId, err);
+  }
 }
 
 async function handleLeadAssigned(event: AppEvent): Promise<void> {
