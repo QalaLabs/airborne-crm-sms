@@ -22,7 +22,7 @@ test("AutoCallingService normalizes various Indian phone formats to E.164 (+91)"
   assert.equal(AutoCallingService.normalizePhone("+14155552671"), "+14155552671");
 });
 
-test("AutoCallingService calling window correctly validates 09:00 - 20:00 IST", () => {
+test("AutoCallingService calling window correctly validates 09:00 - 19:00 IST", () => {
   const morningIST = new Date("2026-10-23T04:30:00.000Z"); // 10:00 AM IST
   assert.equal(AutoCallingService.isCallingWindowOpen(morningIST), true);
 
@@ -31,6 +31,12 @@ test("AutoCallingService calling window correctly validates 09:00 - 20:00 IST", 
 
   const earlyIST = new Date("2026-10-23T03:00:00.000Z"); // 08:30 AM IST
   assert.equal(AutoCallingService.isCallingWindowOpen(earlyIST), false);
+
+  const eveningIST = new Date("2026-10-23T13:30:00.000Z"); // 19:00 PM IST (window closed)
+  assert.equal(AutoCallingService.isCallingWindowOpen(eveningIST), false);
+
+  const lastHourIST = new Date("2026-10-23T13:29:00.000Z"); // 18:59 PM IST
+  assert.equal(AutoCallingService.isCallingWindowOpen(lastHourIST), true);
 
   const nightIST = new Date("2026-10-23T15:30:00.000Z"); // 21:00 PM IST
   assert.equal(AutoCallingService.isCallingWindowOpen(nightIST), false);

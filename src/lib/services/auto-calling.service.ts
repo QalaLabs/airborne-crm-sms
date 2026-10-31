@@ -38,13 +38,13 @@ export class AutoCallingService {
   }
 
   /**
-   * Checks whether the current time falls inside India Standard Time calling hours (09:00 - 20:00 IST).
+   * Checks whether the current time falls inside India Standard Time calling hours (09:00 - 19:00 IST).
    */
   static isCallingWindowOpen(now = new Date()): boolean {
     const istString = now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
     const istDate = new Date(istString);
     const hour = istDate.getHours();
-    return hour >= 9 && hour < 20;
+    return hour >= 9 && hour < 19;
   }
 
   /**
@@ -159,7 +159,7 @@ export class AutoCallingService {
 
     const targetPhone = this.normalizePhone(lead.phone);
 
-    // Calling hours check (09:00 - 20:00 IST)
+    // Calling hours check (09:00 - 19:00 IST)
     if (!this.isCallingWindowOpen()) {
       const queuedActivity = await prisma.leadActivity.create({
         data: {
@@ -167,7 +167,7 @@ export class AutoCallingService {
           orgId,
           activityType: "CALL",
           title: "AI Voice Agent Call Queued (Outside Calling Hours)",
-          notes: `Enquiry received outside 09:00–20:00 IST calling window. Queued for automatic dialling at next window opening.`,
+          notes: `Enquiry received outside 09:00–19:00 IST calling window. Queued for automatic dialling at next window opening.`,
           outcome: "QUEUED",
           completedAt: null,
           metadata: {
@@ -256,10 +256,18 @@ export class AutoCallingService {
 
     const voiceAssistantUrl =
       process.env.VOICE_ASSISTANT_URL || "https://airborne-voice-assistant-368523757732.asia-south1.run.app";
-    const apiKey =
-      process.env.VOICE_ASSISTANT_API_KEY ||
-      process.env.API_SHARED_SECRET ||
-      "AbvgRHR33ZOCqBb2tLsslaCL69qc3UJvC4FDGFl9t2A";
+    const apiKey = process.env.VOICE_ASSISTANT_API_KEY || process.env.API_SHARED_SECRET;
+    if (!apiKey) {
+      await prisma.leadActivity.update({
+        where: { id: activity.id },
+        data: {
+          outcome: "FAILED",
+          completedAt: new Date(),
+          notes: "Call dispatch failure: VOICE_ASSISTANT_API_KEY is not configured.",
+        },
+      });
+      return { status: "failed", error: "VOICE_ASSISTANT_API_KEY is not configured", activityId: activity.id };
+    }
 
     const callPayload = {
       phone: targetPhone,
@@ -523,15 +531,19 @@ export class AutoCallingService {
 
       const targetPhone = this.normalizePhone(act.lead.phone);
 
-      // Transition queued activity to in-progress
-      await prisma.leadActivity.update({
-        where: { id: act.id },
+      // Atomically claim and close the queued placeholder. dispatchCall() creates its own
+      // IN_PROGRESS activity, so leaving this row open would count as a phantom active call
+      // forever and eat a concurrency slot. The conditional update also stops two overlapping
+      // cron runs from dialling the same lead twice.
+      const claimed = await prisma.leadActivity.updateMany({
+        where: { id: act.id, outcome: "QUEUED", completedAt: null },
         data: {
-          outcome: "IN_PROGRESS",
-          title: "AI Voice Agent Call In Progress",
-          notes: `Queued outbound AI voice call dispatched to ${targetPhone}.`,
+          outcome: "DISPATCHED",
+          completedAt: new Date(),
+          notes: `Queued outbound AI voice call handed to dialer for ${targetPhone}.`,
         },
       });
+      if (claimed.count === 0) continue;
 
       const res = await this.dispatchCall(orgId, act.lead, targetPhone);
       if (res.status === "dispatched") {
