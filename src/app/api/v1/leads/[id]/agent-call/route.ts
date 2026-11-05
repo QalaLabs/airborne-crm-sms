@@ -197,6 +197,22 @@ export async function POST(req: NextRequest, { params }: Params) {
       },
     });
 
+    // Close any previous QUEUED call activities for this lead so it does not remain stuck or double-dialled
+    await prisma.leadActivity.updateMany({
+      where: {
+        leadId: lead.id,
+        orgId: ctx.orgId,
+        activityType: "CALL",
+        outcome: "QUEUED",
+        completedAt: null,
+      },
+      data: {
+        outcome: "DISPATCHED",
+        completedAt: new Date(),
+        notes: `Queued call superseded by manual AI call dispatch by ${ctx.user.name}.`,
+      },
+    });
+
     await prisma.lead.update({
       where: { id: lead.id },
       data: { lastActivityAt: new Date() },
